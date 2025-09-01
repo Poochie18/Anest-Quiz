@@ -197,9 +197,16 @@
 <body>
     <!-- Fixed bottom controls -->
     <div class="bottom-controls" id="quiz-controls" style="display:none;">
+        <div class="progress mb-2" style="height: 10px; width: 100%;">
+            <div id="quiz-progress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <div class="text-center mb-2">
+            <small id="progress-text" class="text-muted">0 of 0 questions answered</small>
+        </div>
         <div class="controls-row justify-content-center">
             <button class="btn btn-light btn-circle" onclick="window.scrollTo({top: 0, behavior: 'smooth'});" title="Up">&#8679;</button>
-            <button class="btn btn-success" style="width: 120px;" onclick="submitQuiz()">Submit Quiz</button>
+            <button class="btn btn-success" style="width: 120px;" onclick="submitQuiz()">Finish Quiz</button>
         </div>
         <div class="controls-row justify-content-center">
             <button class="btn btn-light btn-circle" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Down">&#8681;</button>
@@ -565,6 +572,8 @@
                 alert('No questions available for this quiz.');
                 return;
             }
+            // Reset individual results
+            individualResults = [];
             document.getElementById('menu').style.display = 'none';
             document.getElementById('quiz').style.display = 'block';
             document.getElementById('quizTitle').textContent = title;
@@ -583,6 +592,10 @@
                 questionDiv.innerHTML = `
                     <h5>Question ${index + 1}${themeName}: ${question.text}</h5>
                     ${getAnswerInputs(question)}
+                    <div class="mt-3">
+                        <button class="btn btn-primary" onclick="submitSingleQuestion(${index}, '${question.id}')">Submit Answer</button>
+                        <div id="result-${question.id}" class="mt-2"></div>
+                    </div>
                 `;
                 questionsDiv.appendChild(questionDiv);
             });
@@ -621,11 +634,114 @@
         }
 
         // Submit quiz and calculate score
-        function submitQuiz() {
-            let totalScore = 0;
-            let maxPossibleScore = 0;
-            const themeScores = {};
-            const questionResults = [];
+        // Store individual question results
+    let individualResults = [];
+
+    function submitSingleQuestion(index, questionId) {
+        const question = currentQuiz[index];
+        const questionAnswers = answers.filter(a => a.question_id === questionId);
+        const isMultipleChoice = questionAnswers.some(a => a.weight > 0 && a.weight < 100);
+        
+        let questionCurrentScore = 0;
+        let questionMaxScore = 0;
+        let selectedAnswerNums = [];
+
+        if (isMultipleChoice) {
+            const selectedInputs = document.querySelectorAll(`input[name="q${questionId}"]:checked`);
+            selectedAnswerNums = Array.from(selectedInputs).map(input => input.value);
+
+            const correctAnswers = questionAnswers.filter(a => a.weight > 0).map(a => a.num_answer);
+            const incorrectSelected = selectedAnswerNums.some(num => !correctAnswers.includes(num));
+            
+            if (incorrectSelected || selectedAnswerNums.length === 0) {
+                questionCurrentScore = 0;
+            } else {
+                questionCurrentScore = questionAnswers
+                    .filter(a => selectedAnswerNums.includes(a.num_answer))
+                    .reduce((sum, a) => sum + a.weight, 0);
+            }
+            questionMaxScore = questionAnswers.reduce((sum, a) => sum + (a.weight > 0 ? a.weight : 0), 0);
+        } else {
+            const selectedInput = document.querySelector(`input[name="q${questionId}"]:checked`);
+            if (selectedInput) {
+                selectedAnswerNums.push(selectedInput.value);
+                const selectedAnswer = questionAnswers.find(a => a.num_answer === selectedInput.value);
+                if (selectedAnswer) {
+                    questionCurrentScore = selectedAnswer.weight;
+                }
+            }
+            questionMaxScore = Math.max(...questionAnswers.map(a => a.weight));
+        }
+
+        // Store the result
+        const result = {
+            question: question,
+            userScore: questionCurrentScore,
+            maxScore: questionMaxScore,
+            selectedAnswers: selectedAnswerNums,
+            correctAnswers: questionAnswers.filter(a => a.weight > 0).map(a => a.num_answer)
+        };
+        individualResults[index] = result;
+
+        // Display immediate feedback
+        const resultDiv = document.getElementById(`result-${questionId}`);
+        const isCorrect = questionCurrentScore === questionMaxScore && questionMaxScore > 0;
+        
+        let feedbackHtml = `
+            <div class="alert alert-${isCorrect ? 'success' : 'danger'} mt-2">
+                <strong>${isCorrect ? 'Correct!' : 'Incorrect'}</strong> (Score: ${questionCurrentScore}/${questionMaxScore})
+                <div class="mt-2">
+                    <strong>Correct Answers:</strong>
+                    <ul class="mb-0">
+                        ${questionAnswers
+                            .filter(a => a.weight > 0)
+                            .map(a => `<li>${a.text}</li>`)
+                            .join('')}
+                    </ul>
+                    ${question.help ? `<div class="mt-2"><strong>Help:</strong> ${question.help}</div>` : ''}
+                </div>
+            </div>
+        `;
+        resultDiv.innerHTML = feedbackHtml;
+
+        // Disable inputs and submit button after submission
+        const inputs = document.querySelectorAll(`input[name="q${questionId}"]`);
+        inputs.forEach(input => input.disabled = true);
+        const submitBtn = resultDiv.previousElementSibling;
+        submitBtn.disabled = true;
+
+        // Update progress
+        updateProgress();
+    }
+
+    function updateProgress() {
+        const totalAnswered = individualResults.filter(r => r !== undefined).length;
+        const totalQuestions = currentQuiz.length;
+        const progressPercentage = (totalAnswered / totalQuestions) * 100;
+        
+        // Update progress bar in controls
+        const progressBar = document.getElementById('quiz-progress');
+        if (progressBar) {
+            progressBar.style.width = `${progressPercentage}%`;
+            progressBar.setAttribute('aria-valuenow', progressPercentage);
+            document.getElementById('progress-text').textContent = 
+                `${totalAnswered} of ${totalQuestions} questions answered`;
+        }
+    }
+
+    function submitQuiz() {
+        // Check if all questions are answered
+        if (individualResults.length < currentQuiz.length || 
+            individualResults.some(r => r === undefined)) {
+            if (!confirm('Some questions are not answered yet. Do you want to submit the quiz anyway?')) {
+                return;
+            }
+        }
+
+        let totalScore = 0;
+        let maxPossibleScore = 0;
+        const themeScores = {};
+        const questionResults = individualResults.filter(r => r !== undefined);
 
             currentQuiz.forEach(question => {
                 const questionAnswers = answers.filter(a => a.question_id === question.id);
