@@ -627,26 +627,14 @@
                 inputsHtml += `<img src="${question.picture}" alt="Question Image" style="max-width:100%; height:auto; margin-bottom: 15px;">`;
             }
 
-            // Determine if it's a single-choice or multiple-choice question
-            // If any answer has a weight other than 0 or 100, assume multiple choice with partial scoring
-            const isMultipleChoice = questionAnswers.some(a => a.weight > 0 && a.weight < 100);
-
-            if (isMultipleChoice) {
-                inputsHtml += questionAnswers.map((a, idx) => `
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="q${question.id}" value="${a.num_answer}" id="q${question.id}a${a.num_answer}">
-                        <label class="form-check-label" for="q${question.id}a${a.num_answer}">${a.text}</label>
-                    </div>
-                `).join('');
-            } else {
-                // Default to radio buttons for single correct answer (weight 0 or 100)
-                inputsHtml += questionAnswers.map((a, idx) => `
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="q${question.id}" value="${a.num_answer}" id="q${question.id}a${a.num_answer}">
-                        <label class="form-check-label" for="q${question.id}a${a.num_answer}">${a.text}</label>
-                    </div>
-                `).join('');
-            }
+            // Всегда используем чекбоксы
+            inputsHtml += questionAnswers.map((a, idx) => `
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="q${question.id}" value="${a.num_answer}" id="q${question.id}a${a.num_answer}">
+                    <label class="form-check-label" for="q${question.id}a${a.num_answer}">${a.text}</label>
+                </div>
+            `).join('');
+            
             return inputsHtml;
         }
 
@@ -663,32 +651,37 @@
         let questionMaxScore = 0;
         let selectedAnswerNums = [];
 
-        if (isMultipleChoice) {
-            const selectedInputs = document.querySelectorAll(`input[name="q${questionId}"]:checked`);
-            selectedAnswerNums = Array.from(selectedInputs).map(input => input.value);
+        const selectedInputs = document.querySelectorAll(`input[name="q${questionId}"]:checked`);
+        selectedAnswerNums = Array.from(selectedInputs).map(input => input.value);
+        const correctAnswers = questionAnswers.filter(a => a.weight > 0).map(a => a.num_answer);
 
-            const correctAnswers = questionAnswers.filter(a => a.weight > 0).map(a => a.num_answer);
-            const incorrectSelected = selectedAnswerNums.some(num => !correctAnswers.includes(num));
-            
-            if (incorrectSelected || selectedAnswerNums.length === 0) {
-                questionCurrentScore = 0;
-            } else {
-                questionCurrentScore = questionAnswers
-                    .filter(a => selectedAnswerNums.includes(a.num_answer))
-                    .reduce((sum, a) => sum + a.weight, 0);
-            }
-            questionMaxScore = questionAnswers.reduce((sum, a) => sum + (a.weight > 0 ? a.weight : 0), 0);
+        // Проверяем, есть ли среди выбранных ответов неправильные
+        const incorrectSelected = selectedAnswerNums.some(num => !correctAnswers.includes(num));
+        
+        // Проверяем количество правильных ответов
+        const totalCorrectAnswers = correctAnswers.length;
+        const isOnlyOneCorrect = totalCorrectAnswers === 1;
+
+        if (selectedAnswerNums.length === 0) {
+            // Если не выбрано ни одного ответа
+            questionCurrentScore = 0;
+        } else if (isOnlyOneCorrect && selectedAnswerNums.length > 1) {
+            // Если правильный ответ только один, а выбрано несколько
+            questionCurrentScore = 0;
+        } else if (incorrectSelected) {
+            // Если выбран хотя бы один неправильный ответ
+            questionCurrentScore = 0;
         } else {
-            const selectedInput = document.querySelector(`input[name="q${questionId}"]:checked`);
-            if (selectedInput) {
-                selectedAnswerNums.push(selectedInput.value);
-                const selectedAnswer = questionAnswers.find(a => a.num_answer === selectedInput.value);
-                if (selectedAnswer) {
-                    questionCurrentScore = selectedAnswer.weight;
-                }
-            }
-            questionMaxScore = Math.max(...questionAnswers.map(a => a.weight));
+            // Подсчитываем баллы за правильные ответы
+            questionCurrentScore = questionAnswers
+                .filter(a => selectedAnswerNums.includes(a.num_answer))
+                .reduce((sum, a) => sum + a.weight, 0);
         }
+
+        // Максимальный балл - сумма весов всех правильных ответов
+        questionMaxScore = questionAnswers
+            .filter(a => a.weight > 0)
+            .reduce((sum, a) => sum + a.weight, 0);
 
         // Store the result
         const result = {
