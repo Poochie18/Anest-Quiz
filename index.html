@@ -272,24 +272,7 @@
     </style>
 </head>
 <body>
-    <!-- Fixed bottom controls -->
-    <div class="bottom-controls" id="quiz-controls" style="display:none;">
-        <div class="progress mb-2" style="height: 10px; width: 100%;">
-            <div id="quiz-progress" class="progress-bar progress-bar-striped progress-bar-animated" 
-                role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-        </div>
-        <div class="text-center mb-2">
-            <small id="progress-text" class="text-muted" data-i18n="progress_text_full" data-i18n-params='{"answered":0,"total":0}'>0 of 0 questions answered</small>
-        </div>
-        <div class="controls-row justify-content-center">
-            <button class="btn btn-light btn-circle" onclick="window.scrollTo({top: 0, behavior: 'smooth'});" title="Up">&#8679;</button>
-            <button class="btn btn-success" style="width: 120px;" onclick="submitQuiz()">Finish Quiz</button>
-        </div>
-        <div class="controls-row justify-content-center">
-            <button class="btn btn-light btn-circle" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Down">&#8681;</button>
-            <button class="btn btn-primary" style="width: 120px;" onclick="window.location.reload()">Back to Menu</button>
-        </div>
-    </div>
+    
 
     <div class="quiz-container">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -309,7 +292,7 @@
             <div class="row justify-content-center g-4">
                 <!-- Тематический квиз -->
                 <div class="col-md-4 col-sm-6">
-                    <a class="text-decoration-none" href="index.html?page=themes">
+                    <a class="text-decoration-none" href="themes.html">
                         <div class="quiz-card text-center p-4 rounded h-100">
                             <i class="fas fa-book-reader mb-3"></i>
                             <h3 class="mb-3" data-i18n="menu_themes">Тематический квиз</h3>
@@ -319,7 +302,7 @@
                 </div>
                 <!-- Экзамен -->
                 <div class="col-md-4 col-sm-6">
-                    <a class="text-decoration-none" href="index.html?page=random">
+                    <a class="text-decoration-none" href="exam.html">
                         <div class="quiz-card text-center p-4 rounded h-100">
                             <i class="fas fa-graduation-cap mb-3"></i>
                             <h3 class="mb-3" data-i18n="menu_exam">Экзамен</h3>
@@ -329,7 +312,7 @@
                 </div>
                 <!-- Статистика -->
                 <div class="col-md-4 col-sm-6">
-                    <a class="text-decoration-none" href="index.html?page=stats">
+                    <a class="text-decoration-none" href="stats.html">
                         <div class="quiz-card text-center p-4 rounded h-100">
                             <i class="fas fa-chart-bar mb-3"></i>
                             <h3 class="mb-3" data-i18n="menu_stats">Статистика</h3>
@@ -339,113 +322,9 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Страница тематических тестов -->
-        <div id="themesPage" class="selector-panel mb-4" style="display:none;">
-            <h4 class="mb-3" data-i18n="menu_themes">Тематические тесты</h4>
-            <div class="row g-2 align-items-stretch">
-                <div class="col-12 col-md-8">
-                    <select id="themeSelect" class="form-select h-100" style="height:48px;">
-                        <option value="" data-i18n="select_theme_placeholder">Выберите тему</option>
-                    </select>
-                </div>
-                <div class="col-12 col-md-4">
-                    <button class="btn btn-primary shadow-sm back-btn w-100" style="height:48px;" onclick="startThemeQuiz()" data-i18n="start">Начать</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Страница случайных тестов (экзамен) -->
-        <div id="randomPage" class="selector-panel mb-4" style="display:none;">
-            <h4 class="mb-3" data-i18n="exam">Экзамен</h4>
-            <div class="d-grid gap-2">
-                <button class="btn btn-primary" onclick="startRandomQuiz(20)">20 <span data-i18n="questions_word">вопросов</span></button>
-                <button class="btn btn-primary" onclick="startRandomQuiz(50)">50 <span data-i18n="questions_word">вопросов</span></button>
-                <button class="btn btn-primary" onclick="startRandomQuiz(100)">100 <span data-i18n="questions_word">вопросов</span></button>
-                <button class="btn btn-primary" onclick="startRandomQuiz(150)">150 <span data-i18n="questions_word">вопросов</span></button>
-            </div>
-        </div>
-
-        <div id="statistics" class="p-3 border rounded bg-light mb-4" style="display: none;">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h3 class="mb-0" data-i18n="stats_title">Statistics</h3>
-            </div>
-            <div id="theme-stats"></div>
-        </div>
-        <div id="quiz" style="display: none;" class="p-3 border rounded bg-light mb-4">
-            <h3 id="quizTitle" class="mb-3">Quiz</h3>
-            <div id="questions"></div>
-        </div>
-        <div id="results" class="results" style="display: none;"></div>
-        
-        <!-- Fixed controls panel -->
-        <div class="floating-controls" id="quiz-controls" style="display:none;">
-            <button class="btn btn-light btn-circle" onclick="window.scrollTo({top: 0, behavior: 'smooth'});" title="Up" data-i18n-attr="title" data-i18n="up">&#8679;</button>
-            <button class="btn btn-success" onclick="submitQuiz()" data-i18n="submit_quiz">Submit Quiz</button>
-            <button class="btn btn-primary" onclick="resetQuiz()" data-i18n="back_to_menu">Back to Menu</button>
-            <button class="btn btn-light btn-circle" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Down" data-i18n-attr="title" data-i18n="down">&#8681;</button>
-        </div>
 
         <style>
-        .floating-controls {
-            position: fixed;
-            right: 24px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            z-index: 2000;
-            background: rgba(255,255,255,0.98);
-            padding: 12px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transition: opacity 0.3s ease;
-        }
-        .floating-controls .btn {
-            min-width: 120px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .floating-controls .btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-        .floating-controls .btn-circle {
-            width: 40px;
-            height: 40px;
-            min-width: 40px;
-            padding: 0;
-            border-radius: 50%;
-            font-size: 22px;
-            line-height: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid #dee2e6;
-        }
-        .floating-controls .btn-circle:hover {
-            background-color: #f8f9fa;
-            border-color: #ced4da;
-        }
-        @media (max-width: 768px) {
-            .floating-controls {
-                right: 12px;
-                padding: 10px;
-                gap: 8px;
-            }
-            .floating-controls .btn {
-                padding: 6px 12px;
-                font-size: 14px;
-                min-width: 100px;
-            }
-            .floating-controls .btn-circle {
-                width: 36px;
-                height: 36px;
-                min-width: 36px;
-                font-size: 18px;
-            }
-        }
+        
         </style>
         <style>
         /* Единый стиль для кнопки назад */
@@ -469,55 +348,10 @@
         </style>
 
         <script>
-        // Control panel visibility functions
-        function showControls() {
-            const controls = document.getElementById('quiz-controls');
-            controls.style.display = 'flex';
-            // Small delay to trigger the opacity transition
-            requestAnimationFrame(() => controls.style.opacity = '1');
-        }
-
-        function hideControls() {
-            const controls = document.getElementById('quiz-controls');
-            controls.style.opacity = '0';
-            setTimeout(() => {
-                controls.style.display = 'none';
-            }, 300); // Match the transition duration
-        }
-
-        // Update the quiz functions to handle controls
-        const origStartQuiz = window.startQuiz;
-        window.startQuiz = function(title) {
-            origStartQuiz(title);
-            showControls();
-        }
-
-        const origDisplayResults = window.displayResults;
-        window.displayResults = function() {
-            origDisplayResults.apply(this, arguments);
-            showControls();
-        }
-
-        const origResetQuiz = window.resetQuiz;
-        window.resetQuiz = function() {
-            origResetQuiz();
-            hideControls();
-        }
-
-        // Add scroll position tracking to hide/show scroll buttons
-        document.addEventListener('scroll', () => {
-            const controls = document.getElementById('quiz-controls');
-            if (!controls || controls.style.display === 'none') return;
-            
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            const scrollHeight = document.documentElement.scrollHeight;
-            const clientHeight = document.documentElement.clientHeight;
-            
-            const upButton = controls.querySelector('button[title="Up"]');
-            const downButton = controls.querySelector('button[title="Down"]');
-            
-            if (upButton) upButton.style.opacity = scrollTop > 100 ? '1' : '0.5';
-            if (downButton) downButton.style.opacity = scrollHeight - scrollTop - clientHeight > 100 ? '1' : '0.5';
+        // Главная страница: показываем только переключатель языка
+        document.addEventListener('DOMContentLoaded', function () {
+            const langSw = document.getElementById('langSwitcher');
+            if (langSw) langSw.classList.add('show');
         });
         </script>
     </div>
@@ -578,8 +412,8 @@
 
                 populateThemeSelect();
             } catch (error) {
-                console.error('Error loading or parsing JSON files:', error);
-                alert('Не удалось загрузить данные викторины. Пожалуйста, проверьте JSON-файлы и консоль браузера на наличие ошибок.');
+                //console.error('Error loading or parsing JSON files:', error);
+                //alert('Не удалось загрузить данные викторины. Пожалуйста, проверьте JSON-файлы и консоль браузера на наличие ошибок.');
             }
         }
 
