@@ -44,6 +44,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Educational Quiz Platform</title>
+    <link rel="preload" href="assets/js/data.js" as="script">
+    <link rel="preload" href="assets/js/ui.js" as="script">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -72,9 +74,12 @@
         }
 
         .quiz-container {
-            max-width: 1200px;
-            margin: 50px auto;
-            padding: 20px;
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 30px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
         body {
@@ -111,8 +116,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 20px;
-            background-color: #e9ecef;
+            background-color: #f8f9fa;
             color: #343a40;
         }
         .bottom-controls {
@@ -219,7 +223,7 @@
         .results ul li:last-child {
             border-bottom: none;
         }
-        .btn-primary, .btn-success {
+        .btn-primary, .btn-success, .btn-danger{
             padding: 10px 20px;
             border-radius: 5px;
             font-size: 16px;
@@ -240,6 +244,14 @@
         .btn-success:hover {
             background-color: #218838;
             border-color: #218838;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+        }
+        .btn-danger:hover {
+            background-color: #bb2d3b;
+            border-color: #bb2d3b;
         }
         .card {
             border: 1px solid #a2d2ff;
@@ -278,78 +290,75 @@
     </div>
 
     <div class="quiz-container">
-        <h1 class="text-center mb-5">Анестезиология Quiz</h1>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div id="breadcrumbs"></div>
+            <div id="backBtn"></div>
+        </div>
+        <h1 id="mainTitle" class="text-center mb-5">Educational Quiz Platform</h1>
         <div id="menu" class="p-4 rounded mb-4">
             <div class="row justify-content-center g-4">
                 <!-- Тематический квиз -->
                 <div class="col-md-4 col-sm-6">
-                    <div class="quiz-card text-center p-4 rounded h-100" onclick="showThemeQuizOptions()">
-                        <i class="fas fa-book-reader mb-3"></i>
-                        <h3 class="mb-3">Тематический квиз</h3>
-                        <p class="text-muted">Проверьте свои знания по конкретным темам</p>
-                    </div>
+                    <a class="text-decoration-none" href="index.html?page=themes">
+                        <div class="quiz-card text-center p-4 rounded h-100">
+                            <i class="fas fa-book-reader mb-3"></i>
+                            <h3 class="mb-3">Тематический квиз</h3>
+                            <p class="text-muted">Проверьте свои знания по конкретным темам</p>
+                        </div>
+                    </a>
                 </div>
                 <!-- Экзамен -->
                 <div class="col-md-4 col-sm-6">
-                    <div class="quiz-card text-center p-4 rounded h-100" onclick="showExamOptions()">
-                        <i class="fas fa-graduation-cap mb-3"></i>
-                        <h3 class="mb-3">Экзамен</h3>
-                        <p class="text-muted">Пройдите полный тест на знания</p>
-                    </div>
+                    <a class="text-decoration-none" href="index.html?page=random">
+                        <div class="quiz-card text-center p-4 rounded h-100">
+                            <i class="fas fa-graduation-cap mb-3"></i>
+                            <h3 class="mb-3">Экзамен</h3>
+                            <p class="text-muted">Пройдите полный тест на знания</p>
+                        </div>
+                    </a>
                 </div>
                 <!-- Статистика -->
                 <div class="col-md-4 col-sm-6">
-                    <div class="quiz-card text-center p-4 rounded h-100" onclick="showStatistics()">
-                        <i class="fas fa-chart-bar mb-3"></i>
-                        <h3 class="mb-3">Статистика</h3>
-                        <p class="text-muted">Просмотр результатов и прогресса</p>
-                    </div>
+                    <a class="text-decoration-none" href="index.html?page=stats">
+                        <div class="quiz-card text-center p-4 rounded h-100">
+                            <i class="fas fa-chart-bar mb-3"></i>
+                            <h3 class="mb-3">Статистика</h3>
+                            <p class="text-muted">Просмотр результатов и прогресса</p>
+                        </div>
+                    </a>
                 </div>
             </div>
         </div>
         
-        <!-- Модальное окно для выбора темы -->
-        <div class="modal fade" id="themeQuizModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Выберите тему</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <select id="themeSelect" class="form-select mb-3">
-                            <option value="">Выберите тему</option>
-                        </select>
-                        <button class="btn btn-primary w-100" onclick="startThemeQuiz()">Начать квиз</button>
-                    </div>
+        <!-- Страница тематических тестов -->
+        <div id="themesPage" class="selector-panel mb-4" style="display:none;">
+            <h4 class="mb-3">Тематические тесты</h4>
+            <div class="row g-2 align-items-stretch">
+                <div class="col-12 col-md-8">
+                    <select id="themeSelect" class="form-select h-100" style="height:48px;">
+                        <option value="">Выберите тему</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <button class="btn btn-primary shadow-sm back-btn w-100" style="height:48px;" onclick="startThemeQuiz()">Начать</button>
                 </div>
             </div>
         </div>
 
-        <!-- Модальное окно для выбора типа экзамена -->
-        <div class="modal fade" id="examModal" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Выберите тип экзамена</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="d-grid gap-3">
-                            <button class="btn btn-outline-primary" onclick="startRandomQuiz(20)">20 вопросов</button>
-                            <button class="btn btn-outline-primary" onclick="startRandomQuiz(50)">50 вопросов</button>
-                            <button class="btn btn-outline-primary" onclick="startRandomQuiz(100)">100 вопросов</button>
-                            <button class="btn btn-outline-primary" onclick="startRandomQuiz(150)">150 вопросов</button>
-                        </div>
-                    </div>
-                </div>
+        <!-- Страница случайных тестов (экзамен) -->
+        <div id="randomPage" class="selector-panel mb-4" style="display:none;">
+            <h4 class="mb-3">Экзамен</h4>
+            <div class="d-grid gap-2">
+                <button class="btn btn-primary" onclick="startRandomQuiz(20)">20 вопросов</button>
+                <button class="btn btn-primary" onclick="startRandomQuiz(50)">50 вопросов</button>
+                <button class="btn btn-primary" onclick="startRandomQuiz(100)">100 вопросов</button>
+                <button class="btn btn-primary" onclick="startRandomQuiz(150)">150 вопросов</button>
             </div>
         </div>
 
         <div id="statistics" class="p-3 border rounded bg-light mb-4" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="mb-0">Statistics</h3>
-                <button class="btn btn-outline-secondary" onclick="hideStatistics()">Back to Menu</button>
             </div>
             <div id="theme-stats"></div>
         </div>
@@ -426,6 +435,26 @@
                 min-width: 36px;
                 font-size: 18px;
             }
+        }
+        </style>
+        <style>
+        /* Единый стиль для кнопки назад */
+        .back-btn {
+            border-radius: 8px;
+            padding: 8px 14px;
+        }
+        /* Вертикальные панели выбора */
+        .selector-panel {
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .selector-panel .form-select,
+        .selector-panel .btn {
+            height: 48px;
+            font-size: 16px;
         }
         </style>
 
@@ -1157,43 +1186,115 @@
         updateQuizStats(questionResults);
     }
 
+    function route() {
+        const params = new URLSearchParams(window.location.search);
+        const page = params.get('page') || 'home';
+        const from = params.get('from');
+
+        // breadcrumbs
+        const crumbs = [{ label: 'Главная', href: 'index.html' }];
+        if (page === 'themes') crumbs.push({ label: 'Тематические тесты', href: 'index.html?page=themes' });
+        if (page === 'random') crumbs.push({ label: 'Случайные тесты', href: 'index.html?page=random' });
+        if (page === 'stats') crumbs.push({ label: 'Статистика', href: 'index.html?page=stats' });
+        if (page === 'quiz') {
+            if (from === 'themes') crumbs.push({ label: 'Тематические тесты', href: 'index.html?page=themes' });
+            if (from === 'random') crumbs.push({ label: 'Случайные тесты', href: 'index.html?page=random' });
+            crumbs.push({ label: 'Тест', href: '#' });
+        }
+        if (window.uiHelpers) {
+            if (page === 'home') {
+                document.getElementById('breadcrumbs').innerHTML = '';
+                document.getElementById('backBtn').innerHTML = '';
+            } else {
+                uiHelpers.renderBreadcrumbs('breadcrumbs', crumbs);
+                uiHelpers.renderBack('backBtn', 'index.html', 'Назад');
+            }
+            // Заголовок: скрыть на страницах выбора и статистики
+            const mainTitle = document.getElementById('mainTitle');
+            if (mainTitle) {
+                mainTitle.style.display = (page === 'themes' || page === 'random' || page === 'stats') ? 'none' : '';
+            }
+        }
+
+        // pages
+        const menu = document.getElementById('menu');
+        const quiz = document.getElementById('quiz');
+        const stats = document.getElementById('statistics');
+        const themesPage = document.getElementById('themesPage');
+        const randomPage = document.getElementById('randomPage');
+
+        menu.style.display = page === 'home' ? 'block' : 'none';
+        quiz.style.display = page === 'quiz' ? 'block' : 'none';
+        stats.style.display = page === 'stats' ? 'block' : 'none';
+        themesPage.style.display = page === 'themes' ? 'block' : 'none';
+        randomPage.style.display = page === 'random' ? 'block' : 'none';
+
+        if (page === 'stats') {
+            showStatistics();
+        }
+
+        // hide selectors on quiz page
+        if (page === 'quiz') {
+            themesPage.style.display = 'none';
+            randomPage.style.display = 'none';
+        }
+    }
+
     // Initialize
-    loadJSONFiles().then(() => {
-        updateStatistics();
-    });
+    (async function init() {
+        try {
+            if (window.quizData) {
+                await quizData.load();
+                // bind globals for existing functions
+                const data = quizData.getData();
+                themes = data.themes; questions = data.questions; answers = data.answers;
+            } else {
+                await loadJSONFiles();
+            }
+            populateThemeSelect();
+            updateStatistics();
+            route();
+        } catch (e) { console.error(e); }
+    })();
     </script>
 </body>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/data.js"></script>
+    <script src="assets/js/ui.js"></script>
     <script>
-    // Функции для работы с модальными окнами
-    function showThemeQuizOptions() {
-        const modal = new bootstrap.Modal(document.getElementById('themeQuizModal'));
-        modal.show();
-    }
-
-    function showExamOptions() {
-        const modal = new bootstrap.Modal(document.getElementById('examModal'));
-        modal.show();
-    }
-
     // Модифицируем существующие функции
     function startThemeQuiz() {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('themeQuizModal'));
         const themeId = document.getElementById('themeSelect').value;
         if (!themeId) {
             alert('Пожалуйста, выберите тему');
             return;
         }
-        modal.hide();
-        currentQuiz = questions.filter(q => q.theme_id === themeId);
-        startQuiz(`Тема: ${themes.find(t => t.id === themeId).name}`);
+        // Переход на отдельную страницу с параметрами
+        const theme = themes.find(t => t.id === themeId);
+        const url = new URL(window.location.origin + window.location.pathname.replace('index.html','') + 'quiz.html');
+        url.searchParams.set('mode', 'theme');
+        url.searchParams.set('from', 'themes');
+        url.searchParams.set('themeId', themeId);
+        window.location.href = url.toString();
     }
 
     function startRandomQuiz(count) {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('examModal'));
-        if (modal) modal.hide();
-        currentQuiz = shuffleArray([...questions]).slice(0, count);
-        startQuiz(`Экзамен: ${count} вопросов`);
+        // Переход на отдельную страницу с параметрами
+        const url = new URL(window.location.origin + window.location.pathname.replace('index.html','') + 'quiz.html');
+        url.searchParams.set('mode', 'random');
+        url.searchParams.set('from', 'random');
+        url.searchParams.set('count', String(count));
+        window.location.href = url.toString();
     }
+    // Обновим URL при возврате в меню
+    const originalResetQuiz = window.resetQuiz;
+    window.resetQuiz = function () {
+        originalResetQuiz();
+        const url = new URL(window.location);
+        url.searchParams.delete('page');
+        window.history.pushState({}, '', url);
+        route();
+    }
+    window.addEventListener('popstate', route);
     </script>
 </html>
