@@ -15,7 +15,7 @@ window.uiHelpers = (function () {
         const container = document.getElementById(containerId);
         if (!container) return;
         const backLabel = label || (window.i18n ? i18n.t('back') : 'Назад');
-        container.innerHTML = `<button type="button" class="btn btn-primary shadow-sm back-btn" onclick="window.history.back()"><i class="fa fa-arrow-left me-2"></i>${backLabel}</button>`;
+        container.innerHTML = `<button type="button" class="btn btn-primary shadow-sm back-btn" onclick="window.history.back()"><i class="fa fa-arrow-left me-2 d-none d-sm-inline"></i><span class="d-none d-sm-inline">${backLabel}</span><i class="fa fa-arrow-left d-sm-none"></i></button>`;
     }
 
     return { renderBreadcrumbs, renderBack };

@@ -26,6 +26,7 @@
         @media (max-width: 576px) {
             .floating-controls { right: 12px; bottom: 12px; }
             .floating-controls .controls-inner { width: 100%; }
+            .back-btn { padding: 6px 10px; font-size: 0.875rem; }
         }
         .back-btn { border-radius: 8px; padding: 8px 14px; }
         .correct { color: #008000 !important; }
@@ -50,11 +51,11 @@
                 <button class="btn btn-success shadow-sm flex-grow-1" onclick="submitQuiz()" data-i18n="submit_quiz">Завершить</button>
             </div>
             <div class="row-controls">
-                <div class="progress w-100">
+                <div class="progress w-100 position-relative">
                     <div id="quiz-progress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    <small id="progress-text" class="position-absolute w-100 text-center text-dark" style="top: 50%; transform: translateY(-50%); font-weight: 500;" data-i18n="progress_text" data-i18n-params='{"answered":0,"total":0}'>0 of 0</small>
                 </div>
             </div>
-            <small id="progress-text" class="text-muted text-center" data-i18n="progress_text" data-i18n-params='{"answered":0,"total":0}'>0 of 0</small>
             <div class="row-controls">
                 <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Вниз" data-i18n-attr="title" data-i18n="down"><i class="fa fa-arrow-down"></i></button>
                 <a class="btn btn-danger shadow-sm flex-grow-1" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
@@ -177,6 +178,7 @@
             const isSelected = selectedAnswerNums.includes(answer.num_answer);
             const isCorrectAns = answer.weight > 0;
             label.classList.remove('correct', 'incorrect');
+            label.style.opacity = '1'; // Убираем сниженную прозрачность
             if (isSelected) {
                 label.classList.add(isCorrectAns ? 'correct' : 'incorrect');
                 label.style.fontWeight = 'bold';
@@ -205,7 +207,7 @@
             if (window.i18n && el) {
                 el.setAttribute('data-i18n-params', JSON.stringify({ answered: totalAnswered, total: totalQuestions }));
                 el.setAttribute('data-i18n', 'progress_text');
-                i18n.applyTranslations(el.parentElement || el);
+                i18n.applyTranslations(el.parentElement.parentElement || el);
             } else if (el) {
                 el.textContent = `${totalAnswered} of ${totalQuestions}`;
             }
@@ -245,6 +247,12 @@
 
     function displayResults(totalScore, maxPossibleScore, themeScores, questionResults) {
         document.getElementById('questions').style.display = 'none';
+        // Отключаем кнопку "Завершить" вместо скрытия панели
+        const submitBtn = document.querySelector('#quiz-controls .btn-success');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = window.i18n ? i18n.t('test_completed') : 'Тест завершен';
+        }
         const resultsDiv = document.getElementById('results');
         resultsDiv.style.display = 'block';
         const detailedResultsHtml = questionResults.map((qr, index) => {
