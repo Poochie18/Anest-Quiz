@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="breadcrumbs_quiz">Тест</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            color: #343a40;
+        }
+        .quiz-container {
+            max-width: 900px; margin: 30px auto; background: #fff; padding: 30px;
+            border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .question { margin-bottom: 25px; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px; background-color: #fefefe; }
+        /* Панель управления: закреплена справа снизу, 3 ряда */
+        .floating-controls { position: fixed; right: 16px; bottom: 16px; z-index: 1030; }
+        .floating-controls .controls-inner { background: rgba(255,255,255,0.98); border: 1px solid #dee2e6; box-shadow: 0 4px 12px rgba(0,0,0,0.12); padding: 10px; border-radius: 10px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; width: 240px; max-width: calc(100vw - 24px); }
+        .floating-controls .row-controls { display: flex; gap: 8px; align-items: center; }
+        .floating-controls .btn { box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+        .floating-controls .progress { height: 8px; }
+        @media (max-width: 576px) {
+            .floating-controls { right: 12px; bottom: 12px; }
+            .floating-controls .controls-inner { width: 100%; }
+        }
+        .back-btn { border-radius: 8px; padding: 8px 14px; }
+        .correct { color: #008000 !important; }
+        .incorrect { color: #cc0000 !important; }
+    </style>
+</head>
+<body>
+    <div class="quiz-container">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div id="breadcrumbs"></div>
+            <div id="backBtn"></div>
+        </div>
+        <h3 id="quizTitle" class="mb-4"></h3>
+        <div id="questions"></div>
+        <div id="results" class="results" style="display:none;"></div>
+    </div>
+
+    <div class="floating-controls" id="quiz-controls" style="display:none;">
+        <div class="controls-inner">
+            <div class="row-controls">
+                <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: 0, behavior: 'smooth'});" title="Вверх" data-i18n-attr="title" data-i18n="up"><i class="fa fa-arrow-up"></i></button>
+                <button class="btn btn-success shadow-sm flex-grow-1" onclick="submitQuiz()" data-i18n="submit_quiz">Завершить</button>
+            </div>
+            <div class="row-controls">
+                <div class="progress w-100">
+                    <div id="quiz-progress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+            <small id="progress-text" class="text-muted text-center" data-i18n="progress_text" data-i18n-params='{"answered":0,"total":0}'>0 of 0</small>
+            <div class="row-controls">
+                <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Вниз" data-i18n-attr="title" data-i18n="down"><i class="fa fa-arrow-down"></i></button>
+                <a class="btn btn-danger shadow-sm flex-grow-1" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/data.js"></script>
+    <script src="assets/js/i18n.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script>
+    let themes = [], questions = [], answers = [];
+    let currentQuiz = [];
+    let individualResults = [];
+
+    function showControls() {
+        const controls = document.getElementById('quiz-controls');
+        controls.style.display = 'flex';
+    }
+    function hideControls() {
+        const controls = document.getElementById('quiz-controls');
+        controls.style.display = 'none';
+    }
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function getAnswerInputs(question) {
+        const questionAnswers = answers.filter(a => a.question_id === question.id);
+        let inputsHtml = '';
+        if (question.picture) {
+            inputsHtml += `<img src="${question.picture}" alt="Question Image" style="max-width:100%; height:auto; margin-bottom: 15px;">`;
+        }
+        inputsHtml += questionAnswers.map(a => `
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="q${question.id}" value="${a.num_answer}" id="q${question.id}a${a.num_answer}">
+                <label class="form-check-label" for="q${question.id}a${a.num_answer}">${a.text}</label>
+            </div>
+        `).join('');
+        return inputsHtml;
+    }
+
+    function startQuiz(title) {
+        if (currentQuiz.length === 0) {
+            alert(window.i18n ? i18n.t('no_questions_available') : 'Нет доступных вопросов для этого теста.');
+            return;
+        }
+        individualResults = [];
+        document.getElementById('quizTitle').textContent = title;
+        const questionsDiv = document.getElementById('questions');
+        questionsDiv.innerHTML = '';
+        currentQuiz.forEach((question, index) => {
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'question';
+            let themeName = '';
+            const titleText = document.getElementById('quizTitle').textContent;
+            if (titleText.startsWith('Экзамен')) {
+                const theme = themes.find(t => t.id === question.theme_id);
+                if (theme) themeName = ` (${theme.name})`;
+            }
+            questionDiv.innerHTML = `
+                <h5>${window.i18n ? i18n.t('question_word') : 'Вопрос'} ${index + 1}${themeName}: ${question.text}</h5>
+                ${getAnswerInputs(question)}
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="submitSingleQuestion(${index}, '${question.id}')" data-i18n="submit_answer">Ответить</button>
+                    <div id="result-${question.id}" class="mt-2"></div>
+                </div>
+            `;
+            questionsDiv.appendChild(questionDiv);
+        });
+        showControls();
+    }
+
+    function submitSingleQuestion(index, questionId) {
+        const question = currentQuiz[index];
+        const questionAnswers = answers.filter(a => a.question_id === questionId);
+        let questionCurrentScore = 0;
+        let questionMaxScore = 0;
+        let selectedAnswerNums = [];
+
+        const selectedInputs = document.querySelectorAll(`input[name="q${questionId}"]:checked`);
+        selectedAnswerNums = Array.from(selectedInputs).map(input => input.value);
+        const correctAnswers = questionAnswers.filter(a => a.weight > 0).map(a => a.num_answer);
+        const incorrectSelected = selectedAnswerNums.some(num => !correctAnswers.includes(num));
+        const totalCorrectAnswers = correctAnswers.length;
+        const isOnlyOneCorrect = totalCorrectAnswers === 1;
+
+        if (selectedAnswerNums.length === 0) {
+            questionCurrentScore = 0;
+        } else if (isOnlyOneCorrect && selectedAnswerNums.length > 1) {
+            questionCurrentScore = 0;
+        } else if (incorrectSelected) {
+            questionCurrentScore = 0;
+        } else {
+            questionCurrentScore = questionAnswers
+                .filter(a => selectedAnswerNums.includes(a.num_answer))
+                .reduce((sum, a) => sum + a.weight, 0);
+        }
+
+        questionMaxScore = questionAnswers.filter(a => a.weight > 0).reduce((sum, a) => sum + a.weight, 0);
+
+        individualResults[index] = {
+            question: question,
+            userScore: questionCurrentScore,
+            maxScore: questionMaxScore,
+            selectedAnswers: selectedAnswerNums,
+            correctAnswers: correctAnswers
+        };
+
+        const resultDiv = document.getElementById(`result-${questionId}`);
+        const isCorrect = questionCurrentScore === questionMaxScore && questionMaxScore > 0;
+        questionAnswers.forEach(answer => {
+            const label = document.querySelector(`label[for="q${questionId}a${answer.num_answer}"]`);
+            const isSelected = selectedAnswerNums.includes(answer.num_answer);
+            const isCorrectAns = answer.weight > 0;
+            label.classList.remove('correct', 'incorrect');
+            if (isSelected) {
+                label.classList.add(isCorrectAns ? 'correct' : 'incorrect');
+                label.style.fontWeight = 'bold';
+            } else if (isCorrectAns) {
+                label.classList.add('correct');
+                label.style.fontWeight = 'normal';
+            }
+        });
+
+        resultDiv.innerHTML = `<div class="d-inline-block alert alert-${isCorrect ? 'success' : 'danger'} mt-2 py-1 px-2"><strong>${isCorrect ? (window.i18n ? i18n.t('correct') : 'Верно') : (window.i18n ? i18n.t('incorrect') : 'Неверно')}</strong> (${questionCurrentScore}/${questionMaxScore})</div>`;
+        const inputs = document.querySelectorAll(`input[name="q${questionId}"]`);
+        inputs.forEach(input => input.disabled = true);
+        const submitBtn = resultDiv.previousElementSibling; submitBtn.disabled = true;
+        updateProgress();
+    }
+
+    function updateProgress() {
+        const totalAnswered = individualResults.filter(r => r !== undefined).length;
+        const totalQuestions = currentQuiz.length;
+        const progressPercentage = (totalAnswered / totalQuestions) * 100;
+        const progressBar = document.getElementById('quiz-progress');
+        if (progressBar) {
+            progressBar.style.width = `${progressPercentage}%`;
+            progressBar.setAttribute('aria-valuenow', progressPercentage);
+            const el = document.getElementById('progress-text');
+            if (window.i18n && el) {
+                el.setAttribute('data-i18n-params', JSON.stringify({ answered: totalAnswered, total: totalQuestions }));
+                el.setAttribute('data-i18n', 'progress_text');
+                i18n.applyTranslations(el.parentElement || el);
+            } else if (el) {
+                el.textContent = `${totalAnswered} of ${totalQuestions}`;
+            }
+        }
+    }
+
+    function submitQuiz() {
+        if (individualResults.length < currentQuiz.length || individualResults.some(r => r === undefined)) {
+            if (!confirm(window.i18n ? i18n.t('some_unanswered_confirm') : 'Некоторые вопросы не отвечены. Завершить тест?')) return;
+        }
+        let totalScore = 0; let maxPossibleScore = 0; const themeScores = {}; const questionResults = [];
+        currentQuiz.forEach(question => {
+            const questionAnswers = answers.filter(a => a.question_id === question.id);
+            let questionCurrentScore = 0; let questionMaxScore = 0; let selectedAnswerNums = [];
+            const selectedInputs = document.querySelectorAll(`input[name="q${question.id}"]:checked`);
+            selectedAnswerNums = Array.from(selectedInputs).map(input => input.value);
+            const correctAnswers = questionAnswers.filter(a => a.weight > 0).map(a => a.num_answer);
+            const incorrectSelected = selectedAnswerNums.some(num => !correctAnswers.includes(num));
+            if (incorrectSelected || selectedAnswerNums.length === 0) {
+                questionCurrentScore = 0;
+            } else {
+                questionCurrentScore = questionAnswers.filter(a => selectedAnswerNums.includes(a.num_answer)).reduce((s, a) => s + a.weight, 0);
+            }
+            questionMaxScore = questionAnswers.reduce((s, a) => s + (a.weight > 0 ? a.weight : 0), 0);
+            totalScore += questionCurrentScore; maxPossibleScore += questionMaxScore;
+            const theme = themes.find(t => t.id === question.theme_id);
+            if (theme) {
+                themeScores[theme.name] = themeScores[theme.name] || { score: 0, max: 0 };
+                themeScores[theme.name].score += questionCurrentScore;
+                themeScores[theme.name].max += questionMaxScore;
+            }
+            questionResults.push({ question, userScore: questionCurrentScore, maxScore: questionMaxScore, selectedAnswers: selectedAnswerNums, correctAnswers });
+        });
+        displayResults(totalScore, maxPossibleScore, themeScores, questionResults);
+        updateQuizStats(questionResults);
+    }
+
+    function displayResults(totalScore, maxPossibleScore, themeScores, questionResults) {
+        document.getElementById('questions').style.display = 'none';
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.style.display = 'block';
+        const detailedResultsHtml = questionResults.map((qr, index) => {
+            const isCorrect = qr.userScore === qr.maxScore && qr.maxScore > 0;
+            const resultClass = isCorrect ? 'text-success' : 'text-danger';
+            const answersHtml = answers.filter(a => a.question_id === qr.question.id).map(a => {
+                const isSelected = qr.selectedAnswers.includes(a.num_answer);
+                const isCorrectAnswer = a.weight > 0;
+                let cls = '';
+                if (isSelected && isCorrectAnswer) cls = 'text-success fw-bold';
+                else if (isSelected && !isCorrectAnswer) cls = 'text-danger fw-bold';
+                else if (!isSelected && isCorrectAnswer) cls = 'text-success';
+                return `<li class="${cls}">${a.text} ${isCorrectAnswer ? '(Верный)' : ''} ${isSelected ? '(Ваш ответ)' : ''}</li>`;
+            }).join('');
+            return `
+                <div class="card mb-3">
+                    <div class="card-header">${window.i18n ? i18n.t('question_word') : 'Вопрос'} ${index + 1}: ${qr.question.text}</div>
+                    <div class="card-body">
+                        <p class="${resultClass}">${window.i18n ? i18n.t('result') : 'Результат'}: ${isCorrect ? (window.i18n ? i18n.t('correct') : 'Верно') : (window.i18n ? i18n.t('incorrect') : 'Неверно')} (${qr.userScore} / ${qr.maxScore})</p>
+                        <h6 data-i18n="answers">Ответы:</h6>
+                        <ul>${answersHtml}</ul>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        resultsDiv.innerHTML = `
+            <h4 data-i18n="quiz_results">Результаты</h4>
+            <p>${window.i18n ? i18n.t('total_score') : 'Итог'}: ${totalScore} / ${maxPossibleScore} (${((totalScore / maxPossibleScore) * 100).toFixed(2)}%)</p>
+            <h5 data-i18n="score_by_theme">По темам:</h5>
+            <ul>
+                ${Object.entries(themeScores).map(([theme, { score, max }]) => `<li>${theme}: ${score} / ${max} (${((score / max) * 100).toFixed(2)}%)</li>`).join('')}
+            </ul>
+            <hr>
+            ${detailedResultsHtml}
+            <a class="btn btn-primary" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
+        `;
+    }
+
+    async function init() {
+        const params = new URLSearchParams(window.location.search);
+        const mode = params.get('mode');
+        const from = params.get('from');
+        const themeId = params.get('themeId');
+        const count = parseInt(params.get('count') || '0', 10);
+
+        if (window.quizData) {
+            const loaded = await quizData.load();
+            themes = loaded.themes; questions = loaded.questions; answers = loaded.answers;
+        }
+
+        // breadcrumbs and back
+        const crumbs = [{ label: (window.i18n? i18n.t('breadcrumbs_home') : 'Главная'), i18nKey: 'breadcrumbs_home', href: 'index.html' }];
+        if (from === 'themes') crumbs.push({ label: (window.i18n? i18n.t('breadcrumbs_themes') : 'Тематические тесты'), i18nKey: 'breadcrumbs_themes', href: 'index.html?page=themes' });
+        if (from === 'random') crumbs.push({ label: (window.i18n? i18n.t('breadcrumbs_random') : 'Случайные тесты'), i18nKey: 'breadcrumbs_random', href: 'index.html?page=random' });
+        crumbs.push({ label: (window.i18n? i18n.t('breadcrumbs_quiz') : 'Тест'), i18nKey: 'breadcrumbs_quiz', href: '#' });
+        if (window.uiHelpers) {
+            uiHelpers.renderBreadcrumbs('breadcrumbs', crumbs);
+            uiHelpers.renderBack('backBtn', 'index.html', (window.i18n? i18n.t('back') : 'Назад'));
+        }
+
+        // build quiz
+        if (mode === 'theme' && themeId) {
+            currentQuiz = questions.filter(q => q.theme_id === themeId);
+            const themeName = themes.find(t => t.id === themeId)?.name || '';
+            startQuiz(`${window.i18n ? i18n.t('theme_prefix') : 'Тема'}: ${themeName}`);
+        } else if (mode === 'random' && count > 0) {
+            currentQuiz = shuffleArray([...questions]).slice(0, count);
+            startQuiz(`${window.i18n ? i18n.t('exam_prefix') : 'Экзамен'}: ${count} ${window.i18n ? i18n.t('questions_word') : 'вопросов'}`);
+        } else {
+            document.getElementById('questions').innerHTML = `<div class="alert alert-warning">${window.i18n ? i18n.t('invalid_quiz_params') : 'Неверные параметры теста.'}</div>`;
+        }
+    }
+
+    init();
+
+    // Сохранение статистики по темам, как на главной странице
+    function updateQuizStats(results) {
+        try {
+            const stats = JSON.parse(localStorage.getItem('quizStats') || '{}');
+            const resultsByTheme = {};
+            results.forEach(result => {
+                const themeId = result.question.theme_id;
+                if (!resultsByTheme[themeId]) resultsByTheme[themeId] = [];
+                resultsByTheme[themeId].push(result);
+            });
+            Object.entries(resultsByTheme).forEach(([themeId, themeResults]) => {
+                const correctCount = themeResults.filter(r => r.userScore === r.maxScore).length;
+                stats[themeId] = {
+                    total: themeResults.length,
+                    correct: correctCount,
+                    lastAttempt: new Date().toISOString()
+                };
+                localStorage.setItem(`lastQuiz_${themeId}`, JSON.stringify(themeResults));
+            });
+            localStorage.setItem('quizStats', JSON.stringify(stats));
+        } catch (e) { console.error('Failed to update stats', e); }
+    }
+    </script>
+</body>
+</html>
+
+
