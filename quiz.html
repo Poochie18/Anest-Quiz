@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Тест</title>
+    <title data-i18n="breadcrumbs_quiz">Тест</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -46,24 +46,25 @@
     <div class="floating-controls" id="quiz-controls" style="display:none;">
         <div class="controls-inner">
             <div class="row-controls">
-                <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: 0, behavior: 'smooth'});" title="Вверх"><i class="fa fa-arrow-up"></i></button>
-                <button class="btn btn-success shadow-sm flex-grow-1" onclick="submitQuiz()">Завершить</button>
+                <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: 0, behavior: 'smooth'});" title="Вверх" data-i18n-attr="title" data-i18n="up"><i class="fa fa-arrow-up"></i></button>
+                <button class="btn btn-success shadow-sm flex-grow-1" onclick="submitQuiz()" data-i18n="submit_quiz">Завершить</button>
             </div>
             <div class="row-controls">
                 <div class="progress w-100">
                     <div id="quiz-progress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
             </div>
-            <small id="progress-text" class="text-muted text-center">0 of 0</small>
+            <small id="progress-text" class="text-muted text-center" data-i18n="progress_text" data-i18n-params='{"answered":0,"total":0}'>0 of 0</small>
             <div class="row-controls">
-                <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Вниз"><i class="fa fa-arrow-down"></i></button>
-                <a class="btn btn-danger shadow-sm flex-grow-1" href="index.html">Назад в меню</a>
+                <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Вниз" data-i18n-attr="title" data-i18n="down"><i class="fa fa-arrow-down"></i></button>
+                <a class="btn btn-danger shadow-sm flex-grow-1" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/data.js"></script>
+    <script src="assets/js/i18n.js"></script>
     <script src="assets/js/ui.js"></script>
     <script>
     let themes = [], questions = [], answers = [];
@@ -104,7 +105,7 @@
 
     function startQuiz(title) {
         if (currentQuiz.length === 0) {
-            alert('Нет доступных вопросов для этого теста.');
+            alert(window.i18n ? i18n.t('no_questions_available') : 'Нет доступных вопросов для этого теста.');
             return;
         }
         individualResults = [];
@@ -121,10 +122,10 @@
                 if (theme) themeName = ` (${theme.name})`;
             }
             questionDiv.innerHTML = `
-                <h5>Вопрос ${index + 1}${themeName}: ${question.text}</h5>
+                <h5>${window.i18n ? i18n.t('question_word') : 'Вопрос'} ${index + 1}${themeName}: ${question.text}</h5>
                 ${getAnswerInputs(question)}
                 <div class="mt-3">
-                    <button class="btn btn-primary" onclick="submitSingleQuestion(${index}, '${question.id}')">Ответить</button>
+                    <button class="btn btn-primary" onclick="submitSingleQuestion(${index}, '${question.id}')" data-i18n="submit_answer">Ответить</button>
                     <div id="result-${question.id}" class="mt-2"></div>
                 </div>
             `;
@@ -185,7 +186,7 @@
             }
         });
 
-        resultDiv.innerHTML = `<div class="d-inline-block alert alert-${isCorrect ? 'success' : 'danger'} mt-2 py-1 px-2"><strong>${isCorrect ? 'Верно' : 'Неверно'}</strong> (${questionCurrentScore}/${questionMaxScore})</div>`;
+        resultDiv.innerHTML = `<div class="d-inline-block alert alert-${isCorrect ? 'success' : 'danger'} mt-2 py-1 px-2"><strong>${isCorrect ? (window.i18n ? i18n.t('correct') : 'Верно') : (window.i18n ? i18n.t('incorrect') : 'Неверно')}</strong> (${questionCurrentScore}/${questionMaxScore})</div>`;
         const inputs = document.querySelectorAll(`input[name="q${questionId}"]`);
         inputs.forEach(input => input.disabled = true);
         const submitBtn = resultDiv.previousElementSibling; submitBtn.disabled = true;
@@ -200,13 +201,20 @@
         if (progressBar) {
             progressBar.style.width = `${progressPercentage}%`;
             progressBar.setAttribute('aria-valuenow', progressPercentage);
-            document.getElementById('progress-text').textContent = `${totalAnswered} of ${totalQuestions}`;
+            const el = document.getElementById('progress-text');
+            if (window.i18n && el) {
+                el.setAttribute('data-i18n-params', JSON.stringify({ answered: totalAnswered, total: totalQuestions }));
+                el.setAttribute('data-i18n', 'progress_text');
+                i18n.applyTranslations(el.parentElement || el);
+            } else if (el) {
+                el.textContent = `${totalAnswered} of ${totalQuestions}`;
+            }
         }
     }
 
     function submitQuiz() {
         if (individualResults.length < currentQuiz.length || individualResults.some(r => r === undefined)) {
-            if (!confirm('Некоторые вопросы не отвечены. Завершить тест?')) return;
+            if (!confirm(window.i18n ? i18n.t('some_unanswered_confirm') : 'Некоторые вопросы не отвечены. Завершить тест?')) return;
         }
         let totalScore = 0; let maxPossibleScore = 0; const themeScores = {}; const questionResults = [];
         currentQuiz.forEach(question => {
@@ -253,25 +261,25 @@
             }).join('');
             return `
                 <div class="card mb-3">
-                    <div class="card-header">Вопрос ${index + 1}: ${qr.question.text}</div>
+                    <div class="card-header">${window.i18n ? i18n.t('question_word') : 'Вопрос'} ${index + 1}: ${qr.question.text}</div>
                     <div class="card-body">
-                        <p class="${resultClass}">Результат: ${isCorrect ? 'Верно' : 'Неверно'} (Баллы: ${qr.userScore} / ${qr.maxScore})</p>
-                        <h6>Ответы:</h6>
+                        <p class="${resultClass}">${window.i18n ? i18n.t('result') : 'Результат'}: ${isCorrect ? (window.i18n ? i18n.t('correct') : 'Верно') : (window.i18n ? i18n.t('incorrect') : 'Неверно')} (${qr.userScore} / ${qr.maxScore})</p>
+                        <h6 data-i18n="answers">Ответы:</h6>
                         <ul>${answersHtml}</ul>
                     </div>
                 </div>
             `;
         }).join('');
         resultsDiv.innerHTML = `
-            <h4>Результаты</h4>
-            <p>Итог: ${totalScore} / ${maxPossibleScore} (${((totalScore / maxPossibleScore) * 100).toFixed(2)}%)</p>
-            <h5>По темам:</h5>
+            <h4 data-i18n="quiz_results">Результаты</h4>
+            <p>${window.i18n ? i18n.t('total_score') : 'Итог'}: ${totalScore} / ${maxPossibleScore} (${((totalScore / maxPossibleScore) * 100).toFixed(2)}%)</p>
+            <h5 data-i18n="score_by_theme">По темам:</h5>
             <ul>
                 ${Object.entries(themeScores).map(([theme, { score, max }]) => `<li>${theme}: ${score} / ${max} (${((score / max) * 100).toFixed(2)}%)</li>`).join('')}
             </ul>
             <hr>
             ${detailedResultsHtml}
-            <a class="btn btn-primary" href="index.html">Назад в меню</a>
+            <a class="btn btn-primary" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
         `;
     }
 
@@ -288,25 +296,25 @@
         }
 
         // breadcrumbs and back
-        const crumbs = [{ label: 'Главная', href: 'index.html' }];
-        if (from === 'themes') crumbs.push({ label: 'Тематические тесты', href: 'index.html?page=themes' });
-        if (from === 'random') crumbs.push({ label: 'Случайные тесты', href: 'index.html?page=random' });
-        crumbs.push({ label: 'Тест', href: '#' });
+        const crumbs = [{ label: (window.i18n? i18n.t('breadcrumbs_home') : 'Главная'), i18nKey: 'breadcrumbs_home', href: 'index.html' }];
+        if (from === 'themes') crumbs.push({ label: (window.i18n? i18n.t('breadcrumbs_themes') : 'Тематические тесты'), i18nKey: 'breadcrumbs_themes', href: 'index.html?page=themes' });
+        if (from === 'random') crumbs.push({ label: (window.i18n? i18n.t('breadcrumbs_random') : 'Случайные тесты'), i18nKey: 'breadcrumbs_random', href: 'index.html?page=random' });
+        crumbs.push({ label: (window.i18n? i18n.t('breadcrumbs_quiz') : 'Тест'), i18nKey: 'breadcrumbs_quiz', href: '#' });
         if (window.uiHelpers) {
             uiHelpers.renderBreadcrumbs('breadcrumbs', crumbs);
-            uiHelpers.renderBack('backBtn', 'index.html', 'Назад');
+            uiHelpers.renderBack('backBtn', 'index.html', (window.i18n? i18n.t('back') : 'Назад'));
         }
 
         // build quiz
         if (mode === 'theme' && themeId) {
             currentQuiz = questions.filter(q => q.theme_id === themeId);
             const themeName = themes.find(t => t.id === themeId)?.name || '';
-            startQuiz(`Тема: ${themeName}`);
+            startQuiz(`${window.i18n ? i18n.t('theme_prefix') : 'Тема'}: ${themeName}`);
         } else if (mode === 'random' && count > 0) {
             currentQuiz = shuffleArray([...questions]).slice(0, count);
-            startQuiz(`Экзамен: ${count} вопросов`);
+            startQuiz(`${window.i18n ? i18n.t('exam_prefix') : 'Экзамен'}: ${count} ${window.i18n ? i18n.t('questions_word') : 'вопросов'}`);
         } else {
-            document.getElementById('questions').innerHTML = '<div class="alert alert-warning">Неверные параметры теста.</div>';
+            document.getElementById('questions').innerHTML = `<div class="alert alert-warning">${window.i18n ? i18n.t('invalid_quiz_params') : 'Неверные параметры теста.'}</div>`;
         }
     }
 
