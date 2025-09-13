@@ -49,11 +49,6 @@
                 <i class="fas fa-search"></i>
             </button>
         </div>
-        
-        <!-- Кнопка для тестирования подсветки -->
-        <div class="mb-3">
-            <button type="button" class="btn btn-warning btn-sm" onclick="testHighlight()">Тест подсветки</button>
-        </div>
 
         <!-- Счетчик результатов -->
         <div id="resultsCount" class="results-count" style="display: none;"></div>
@@ -267,31 +262,6 @@
         });
         
         resultsContainer.innerHTML = html;
-    }
-
-    // Тестовая функция для проверки подсветки
-    function testHighlight() {
-        console.log('Testing highlight function...');
-        
-        const testText = "У порожнину черепа через великий отвір виходить";
-        const testWords = ["порожнину", "черепа"];
-        
-        console.log('Test text:', testText);
-        console.log('Test words:', testWords);
-        
-        const result = highlightText(testText, testWords);
-        console.log('Test result:', result);
-        
-        // Показываем результат на странице
-        const resultsContainer = document.getElementById('searchResults');
-        resultsContainer.innerHTML = `
-            <div class="alert alert-info">
-                <h5>Тест подсветки:</h5>
-                <p><strong>Исходный текст:</strong> ${testText}</p>
-                <p><strong>Слова для подсветки:</strong> ${testWords.join(', ')}</p>
-                <p><strong>Результат:</strong> ${result}</p>
-            </div>
-        `;
     }
 
     // Выполнение поиска
