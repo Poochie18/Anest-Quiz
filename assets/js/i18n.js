@@ -8,9 +8,11 @@
             menu_themes: 'Тематичні тести',
             menu_exam: 'Екзамен',
             menu_stats: 'Статистика',
+            menu_search: 'Пошук',
             menu_themes_desc: 'Перевірте знання за конкретними темами',
             menu_exam_desc: 'Пройдіть повний тест на знання',
             menu_stats_desc: 'Перегляд результатів і прогресу',
+            menu_search_desc: 'Пошук питань за ключовими словами',
 
             select_theme_placeholder: 'Оберіть тему',
             start: 'Почати',
@@ -60,9 +62,11 @@
             menu_themes: 'Thematic quizzes',
             menu_exam: 'Exam',
             menu_stats: 'Statistics',
+            menu_search: 'Search',
             menu_themes_desc: 'Check your knowledge by specific topics',
             menu_exam_desc: 'Take a full knowledge test',
             menu_stats_desc: 'View results and progress',
+            menu_search_desc: 'Search questions by keywords',
 
             select_theme_placeholder: 'Select a theme',
             start: 'Start',

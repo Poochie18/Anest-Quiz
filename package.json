@@ -4,12 +4,14 @@
   "description": "Educational Quiz Platform",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server-updated.js"
   },
   "engines": {
     "node": ">=14.0.0"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1"
   }
 }

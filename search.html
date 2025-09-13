@@ -18,7 +18,13 @@
         .answer-item.correct { background-color: #d4edda; border-color: #c3e6cb; color: #155724; font-weight: 500; }
         .answer-item.incorrect { background-color: #f8f9fa; border-color: #e9ecef; color: #6c757d; }
         .no-results { text-align: center; padding: 40px; color: #6c757d; }
-        .highlight { background-color: #fff3cd; padding: 2px 4px; border-radius: 3px; }
+        .highlight { 
+            background-color: #ffeb3b; 
+            padding: 2px 4px; 
+            border-radius: 3px; 
+            font-weight: 600;
+            color: #333;
+        }
         .results-count { margin-bottom: 20px; color: #6c757d; font-size: 0.9rem; }
     </style>
     <link rel="preload" href="assets/js/data.js" as="script">
@@ -42,6 +48,11 @@
             <button type="button" id="searchBtn" class="search-btn" title="Поиск">
                 <i class="fas fa-search"></i>
             </button>
+        </div>
+        
+        <!-- Кнопка для тестирования подсветки -->
+        <div class="mb-3">
+            <button type="button" class="btn btn-warning btn-sm" onclick="testHighlight()">Тест подсветки</button>
         </div>
 
         <!-- Счетчик результатов -->
@@ -146,17 +157,46 @@
         return results.sort((a, b) => b.score - a.score);
     }
 
-    // Функция для подсветки найденных слов
+    // Функция для подсветки найденных слов - упрощенная версия
     function highlightText(text, searchWords) {
-        if (!text || !searchWords.length) return text;
+        console.log('highlightText called with text:', text);
+        console.log('highlightText called with searchWords:', searchWords);
         
-        let highlightedText = text;
+        if (!text || !searchWords || searchWords.length === 0) {
+            console.log('No text or search words provided');
+            return text;
+        }
+        
+        let result = text;
+        
+        // Простая замена каждого слова
         searchWords.forEach(word => {
-            const regex = new RegExp(`(${word})`, 'gi');
-            highlightedText = highlightedText.replace(regex, '<span class="highlight">$1</span>');
+            if (word && word.length >= 2) {
+                console.log('Trying to highlight word:', word);
+                
+                // Создаем простое регулярное выражение без границ слов
+                const regex = new RegExp(`(${word})`, 'gi');
+                const beforeReplace = result;
+                result = result.replace(regex, '<span class="highlight">$1</span>');
+                
+                if (beforeReplace !== result) {
+                    console.log('Successfully highlighted:', word);
+                } else {
+                    console.log('No matches found for:', word);
+                    
+                    // Попробуем точное соответствие с украинскими символами
+                    if (word.includes('и')) {
+                        const ukrainianWord = word.replace(/и/g, 'і');
+                        const ukrainianRegex = new RegExp(`(${ukrainianWord})`, 'gi');
+                        result = result.replace(ukrainianRegex, '<span class="highlight">$1</span>');
+                        console.log('Tried Ukrainian variant:', ukrainianWord);
+                    }
+                }
+            }
         });
         
-        return highlightedText;
+        console.log('Final highlighted text:', result);
+        return result;
     }
 
     // Отображение результатов поиска
@@ -179,7 +219,10 @@
         resultsCount.innerHTML = `Найдено вопросов: <strong>${results.length}</strong>`;
         resultsCount.style.display = 'block';
 
-        const searchWords = normalizeText(searchTerm).split(/\s+/).filter(word => word.length > 2);
+        // Используем оригинальные слова из поискового запроса для подсветки
+        const originalSearchWords = searchTerm.trim().split(/\s+/).filter(word => word.length > 2);
+        console.log('Search term:', searchTerm);
+        console.log('Original search words:', originalSearchWords);
         
         let html = '';
         results.forEach((result, index) => {
@@ -189,8 +232,12 @@
             // Получаем ответы для этого вопроса
             const questionAnswers = answers.filter(a => a._KodQuestion === questionId);
             
+            console.log('Question text before highlighting:', question._Question);
+            
             // Подсвечиваем найденные слова в тексте вопроса
-            const highlightedQuestion = highlightText(question._Question, searchWords);
+            const highlightedQuestion = highlightText(question._Question, originalSearchWords);
+            
+            console.log('Question text after highlighting:', highlightedQuestion);
             
             html += `
                 <div class="question-item">
@@ -220,6 +267,31 @@
         });
         
         resultsContainer.innerHTML = html;
+    }
+
+    // Тестовая функция для проверки подсветки
+    function testHighlight() {
+        console.log('Testing highlight function...');
+        
+        const testText = "У порожнину черепа через великий отвір виходить";
+        const testWords = ["порожнину", "черепа"];
+        
+        console.log('Test text:', testText);
+        console.log('Test words:', testWords);
+        
+        const result = highlightText(testText, testWords);
+        console.log('Test result:', result);
+        
+        // Показываем результат на странице
+        const resultsContainer = document.getElementById('searchResults');
+        resultsContainer.innerHTML = `
+            <div class="alert alert-info">
+                <h5>Тест подсветки:</h5>
+                <p><strong>Исходный текст:</strong> ${testText}</p>
+                <p><strong>Слова для подсветки:</strong> ${testWords.join(', ')}</p>
+                <p><strong>Результат:</strong> ${result}</p>
+            </div>
+        `;
     }
 
     // Выполнение поиска
@@ -283,7 +355,7 @@
         // Настраиваем хлебные крошки и кнопку назад
         const crumbs = [
             { label: 'Главная', href: 'index.html' },
-            { label: 'Поиск вопросов', href: 'stats.html' }
+            { label: 'Поиск вопросов', href: 'search.html' }
         ];
         
         if (window.uiHelpers) {
@@ -311,7 +383,11 @@
         
         // Показать/скрыть кнопку очистки при изменении текста
         searchInput.addEventListener('input', (e) => {
-            if (e.target.value.trim() === '') {
+            const clearBtn = document.getElementById('clearBtn');
+            if (e.target.value.length > 0) {
+                clearBtn.style.display = 'block';
+            } else {
+                clearBtn.style.display = 'none';
                 clearSearch();
             }
         });
