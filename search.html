@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #343a40; }
+        body { font-family: ''Segoe UI'', Tahoma, Geneva, Verdana, sans-serif; background: #f8f9fa; color: #343a40; }
         .container-narrow { max-width: 900px; margin: 30px auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .search-box { position: relative; margin-bottom: 30px; }
         .search-box .clear-btn { position: absolute; right: 50px; top: 50%; transform: translateY(-50%); border: none; background: none; color: #6c757d; cursor: pointer; }
@@ -18,13 +18,7 @@
         .answer-item.correct { background-color: #d4edda; border-color: #c3e6cb; color: #155724; font-weight: 500; }
         .answer-item.incorrect { background-color: #f8f9fa; border-color: #e9ecef; color: #6c757d; }
         .no-results { text-align: center; padding: 40px; color: #6c757d; }
-        .highlight { 
-            background-color: #ffeb3b; 
-            padding: 2px 4px; 
-            border-radius: 3px; 
-            font-weight: 600;
-            color: #333;
-        }
+        .highlight { background-color: #ffeb3b; padding: 2px 4px; border-radius: 3px; font-weight: 600; color: #333; }
         .results-count { margin-bottom: 20px; color: #6c757d; font-size: 0.9rem; }
     </style>
     <link rel="preload" href="assets/js/data.js" as="script">
@@ -39,7 +33,6 @@
         </div>
         <h3 class="mb-4">Поиск вопросов</h3>
         
-        <!-- Поисковая форма -->
         <div class="search-box">
             <input type="text" id="searchInput" class="form-control form-control-lg" placeholder="Введите ключевые слова для поиска вопросов..." style="padding-right: 90px;">
             <button type="button" id="clearBtn" class="clear-btn" title="Очистить поиск" style="display: none;">
@@ -50,10 +43,7 @@
             </button>
         </div>
 
-        <!-- Счетчик результатов -->
         <div id="resultsCount" class="results-count" style="display: none;"></div>
-
-        <!-- Результаты поиска -->
         <div id="searchResults"></div>
     </div>
 
@@ -66,54 +56,43 @@
     let allQuestions = [];
     let currentSearchResults = [];
 
-    // Функция для нормализации текста (убираем диакритики и приводим к нижнему регистру)
-    function normalizeText(text) {
+    function normalizeUnicodeChars(text) {
         if (!text) return '';
-        return text.toLowerCase()
-            .replace(/[іїєґ]/g, (match) => {
-                switch(match) {
-                    case 'і': return 'и';
-                    case 'ї': return 'и';
-                    case 'є': return 'е';
-                    case 'ґ': return 'г';
-                    default: return match;
-                }
-            })
-            .replace(/[^\u0400-\u04FF\u0041-\u005A\u0061-\u007A\u0030-\u0039\s]/g, '');
+        return text.replace(/[iìíîïĩīĭįı]/g, 'і').replace(/[IÌÍÎÏĨĪĬĮI]/g, 'І').replace(/[ёe]/g, 'е').replace(/[Ёe]/g, 'Е').replace(/[ъь]/g, '');
     }
 
-    // Умный поиск по ключевым словам
-    function searchQuestions(searchTerm) {
-        if (!searchTerm.trim()) {
-            return [];
-        }
+    function normalizeTextForSearch(text) {
+        if (!text) return '';
+        let normalized = normalizeUnicodeChars(text);
+        normalized = normalized.toLowerCase().replace(/[іїи]/g, 'і').replace(/[''''`]/g, "'").replace(/[""""]/g, '"').replace(/\s+/g, ' ').trim();
+        return normalized;
+    }
 
-        const normalizedSearchTerm = normalizeText(searchTerm);
-        const searchWords = normalizedSearchTerm.split(/\s+/).filter(word => word.length > 2);
+    function searchQuestions(searchTerm) {
+        if (!searchTerm.trim()) return [];
+        const normalizedSearchTerm = normalizeTextForSearch(searchTerm);
+        const allSearchWords = normalizedSearchTerm.split(/\s+/).filter(word => word.length > 0);
+        const longWords = allSearchWords.filter(word => word.length > 2);
+        const shortWords = allSearchWords.filter(word => word.length <= 2);
         
-        if (searchWords.length === 0) {
-            return [];
-        }
+        if (allSearchWords.length === 0) return [];
 
         const results = [];
-
         allQuestions.forEach(question => {
-            const questionText = normalizeText(question._Question || '');
-            const helpText = normalizeText(question._Help || '');
+            const questionText = normalizeTextForSearch(question._Question || '');
+            const helpText = normalizeTextForSearch(question._Help || '');
+            const questionWords = questionText.split(/\s+/);
             
             let score = 0;
             const matchedWords = [];
 
-            // Проверяем каждое слово поиска
-            searchWords.forEach(searchWord => {
-                // Точное совпадение в тексте вопроса (высокий приоритет)
+            // Поиск длинных слов (как подстроки)
+            longWords.forEach(searchWord => {
                 if (questionText.includes(searchWord)) {
                     score += 10;
                     matchedWords.push(searchWord);
                 }
                 
-                // Частичное совпадение в тексте вопроса
-                const questionWords = questionText.split(/\s+/);
                 questionWords.forEach(word => {
                     if (word.includes(searchWord) && word.length > searchWord.length) {
                         score += 5;
@@ -123,7 +102,6 @@
                     }
                 });
 
-                // Поиск в справочной информации (низкий приоритет)
                 if (helpText.includes(searchWord)) {
                     score += 2;
                     if (!matchedWords.includes(searchWord)) {
@@ -132,69 +110,68 @@
                 }
             });
 
-            // Бонус за количество найденных слов
-            if (matchedWords.length === searchWords.length) {
-                score += 20; // Все слова найдены
+            // Поиск коротких слов (только как целые слова)
+            shortWords.forEach(searchWord => {
+                if (questionWords.includes(searchWord)) {
+                    score += 10;
+                    matchedWords.push(searchWord);
+                }
+
+                const helpWords = helpText.split(/\s+/);
+                if (helpWords.includes(searchWord)) {
+                    score += 2;
+                    if (!matchedWords.includes(searchWord)) {
+                        matchedWords.push(searchWord);
+                    }
+                }
+            });
+
+            if (matchedWords.length === allSearchWords.length) {
+                score += 20;
             } else if (matchedWords.length > 0) {
-                score += matchedWords.length * 3; // Частичное совпадение
+                score += matchedWords.length * 3;
             }
 
             if (score > 0) {
-                results.push({
-                    question: question,
-                    score: score,
-                    matchedWords: matchedWords
-                });
+                results.push({ question: question, score: score, matchedWords: matchedWords });
             }
         });
 
-        // Сортируем по релевантности
         return results.sort((a, b) => b.score - a.score);
     }
 
-    // Функция для подсветки найденных слов - упрощенная версия
     function highlightText(text, searchWords) {
-        console.log('highlightText called with text:', text);
-        console.log('highlightText called with searchWords:', searchWords);
-        
-        if (!text || !searchWords || searchWords.length === 0) {
-            console.log('No text or search words provided');
-            return text;
-        }
+        if (!text || !searchWords || searchWords.length === 0) return text;
         
         let result = text;
-        
-        // Простая замена каждого слова
         searchWords.forEach(word => {
-            if (word && word.length >= 2) {
-                console.log('Trying to highlight word:', word);
+            if (word && word.length > 0) {
+                const variants = [
+                    word,
+                    word.replace(/[iI]/g, (match) => match.toLowerCase() === 'i' ? 'і' : 'І'),
+                    word.replace(/[іІ]/g, (match) => match === 'і' ? 'i' : 'I')
+                ];
                 
-                // Создаем простое регулярное выражение без границ слов
-                const regex = new RegExp(`(${word})`, 'gi');
-                const beforeReplace = result;
-                result = result.replace(regex, '<span class="highlight">$1</span>');
-                
-                if (beforeReplace !== result) {
-                    console.log('Successfully highlighted:', word);
-                } else {
-                    console.log('No matches found for:', word);
+                const uniqueVariants = [...new Set(variants)];
+                uniqueVariants.forEach(variant => {
+                    const escapedVariant = variant.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                     
-                    // Попробуем точное соответствие с украинскими символами
-                    if (word.includes('и')) {
-                        const ukrainianWord = word.replace(/и/g, 'і');
-                        const ukrainianRegex = new RegExp(`(${ukrainianWord})`, 'gi');
-                        result = result.replace(ukrainianRegex, '<span class="highlight">$1</span>');
-                        console.log('Tried Ukrainian variant:', ukrainianWord);
+                    // Для коротких слов (1-2 символа) - только целые слова
+                    if (variant.length <= 2) {
+                        const regex = new RegExp(`\\b(${escapedVariant})\\b`, 'gi');
+                        result = result.replace(regex, '<span class="highlight">$1</span>');
+                    } else {
+                        // Для длинных слов - как обычно
+                        const regex = new RegExp(`(${escapedVariant})`, 'gi');
+                        result = result.replace(regex, '<span class="highlight">$1</span>');
                     }
-                }
+                });
             }
         });
         
-        console.log('Final highlighted text:', result);
         return result;
     }
 
-    // Отображение результатов поиска
     function displayResults(results, searchTerm) {
         const resultsContainer = document.getElementById('searchResults');
         const resultsCount = document.getElementById('resultsCount');
@@ -214,25 +191,14 @@
         resultsCount.innerHTML = `Найдено вопросов: <strong>${results.length}</strong>`;
         resultsCount.style.display = 'block';
 
-        // Используем оригинальные слова из поискового запроса для подсветки
-        const originalSearchWords = searchTerm.trim().split(/\s+/).filter(word => word.length > 2);
-        console.log('Search term:', searchTerm);
-        console.log('Original search words:', originalSearchWords);
+        const originalSearchWords = searchTerm.trim().split(/\s+/).filter(word => word.length > 0);
         
         let html = '';
         results.forEach((result, index) => {
             const question = result.question;
             const questionId = question._KodQuestion;
-            
-            // Получаем ответы для этого вопроса
             const questionAnswers = answers.filter(a => a._KodQuestion === questionId);
-            
-            console.log('Question text before highlighting:', question._Question);
-            
-            // Подсвечиваем найденные слова в тексте вопроса
             const highlightedQuestion = highlightText(question._Question, originalSearchWords);
-            
-            console.log('Question text after highlighting:', highlightedQuestion);
             
             html += `
                 <div class="question-item">
@@ -245,7 +211,7 @@
             questionAnswers.forEach((answer, answerIndex) => {
                 const isCorrect = parseInt(answer._VesAnswer) > 0;
                 const answerClass = isCorrect ? 'correct' : 'incorrect';
-                const answerLetter = String.fromCharCode(65 + answerIndex); // A, B, C, D...
+                const answerLetter = String.fromCharCode(65 + answerIndex);
                 
                 html += `
                     <div class="answer-item ${answerClass}">
@@ -264,7 +230,6 @@
         resultsContainer.innerHTML = html;
     }
 
-    // Выполнение поиска
     function performSearch() {
         const searchTerm = document.getElementById('searchInput').value.trim();
         if (!searchTerm) {
@@ -275,12 +240,9 @@
         const results = searchQuestions(searchTerm);
         currentSearchResults = results;
         displayResults(results, searchTerm);
-        
-        // Показываем кнопку очистки
         document.getElementById('clearBtn').style.display = 'block';
     }
 
-    // Очистка поиска
     function clearSearch() {
         document.getElementById('searchInput').value = '';
         document.getElementById('searchResults').innerHTML = '';
@@ -289,7 +251,6 @@
         currentSearchResults = [];
     }
 
-    // Загрузка данных из JSON файлов
     async function loadQuestionsAndAnswers() {
         try {
             const [questionsResponse, answersResponse] = await Promise.all([
@@ -320,9 +281,7 @@
         }
     }
 
-    // Инициализация страницы
     async function init() {
-        // Настраиваем хлебные крошки и кнопку назад
         const crumbs = [
             { label: 'Главная', href: 'index.html' },
             { label: 'Поиск вопросов', href: 'search.html' }
@@ -333,15 +292,12 @@
             uiHelpers.renderBack('backBtn', 'index.html', 'Назад');
         }
         
-        // Загружаем данные
         await loadQuestionsAndAnswers();
         
-        // Настраиваем обработчики событий
         const searchInput = document.getElementById('searchInput');
         const searchBtn = document.getElementById('searchBtn');
         const clearBtn = document.getElementById('clearBtn');
         
-        // Поиск по Enter или клику на кнопку
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 performSearch();
@@ -351,7 +307,6 @@
         searchBtn.addEventListener('click', performSearch);
         clearBtn.addEventListener('click', clearSearch);
         
-        // Показать/скрыть кнопку очистки при изменении текста
         searchInput.addEventListener('input', (e) => {
             const clearBtn = document.getElementById('clearBtn');
             if (e.target.value.length > 0) {
@@ -365,10 +320,7 @@
         console.log('Страница поиска инициализирована');
     }
 
-    // Запуск инициализации
     document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
-
-
