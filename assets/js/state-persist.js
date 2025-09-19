@@ -24,24 +24,61 @@
         };
     }
 
-    // Try to heuristically find a single quiz_random_v2::<sessionKey> in localStorage
+    function buildParamsSnapshotKey(p) {
+        try {
+            if (!p) p = getUrlParams();
+            // key format: quiz_snapshot::mode=<mode>::themeId=<themeId>::count=<count>::from=<from>
+            const parts = ['quiz_snapshot::mode=' + (p.mode || '')];
+            parts.push('themeId=' + (p.themeId || ''));
+            parts.push('count=' + (p.count || ''));
+            parts.push('from=' + (p.from || ''));
+            return parts.join('::');
+        } catch (e) { return null; }
+    }
+
+    // Storage prefixes for random and theme tests. Theme tests will use a separate
+    // namespace so they don't collide with random exam keys.
+    const MAIN_PREFIX_RANDOM = 'quiz_random_v2::';
+    const MAIN_PREFIX_THEME = 'quiz_theme_v1::';
+
+    function makeMainKey(sessionKey, mode) {
+        try {
+            if (!sessionKey) return null;
+            return (mode === 'theme' ? MAIN_PREFIX_THEME : MAIN_PREFIX_RANDOM) + sessionKey;
+        } catch (e) { return null; }
+    }
+
+    // Given a sessionKey (without prefix), try to detect which main prefix it belongs to
+    // by checking presence in localStorage. Returns one of MAIN_PREFIX_THEME, MAIN_PREFIX_RANDOM or null.
+    function resolvePrefixForSessionKey(sessionKey) {
+        try {
+            if (!sessionKey) return null;
+            if (safeGet(MAIN_PREFIX_THEME + sessionKey) !== null) return MAIN_PREFIX_THEME;
+            if (safeGet(MAIN_PREFIX_RANDOM + sessionKey) !== null) return MAIN_PREFIX_RANDOM;
+        } catch (e) { /* ignore */ }
+        return null;
+    }
+
+    // Try to heuristically find a single session key (random or theme) in localStorage
     // This is a safe fallback when the URL lost the `key` parameter and window.quizSessionKey
     // is not set (for example after a navigation which didn't preserve the param).
     function findSessionKeyFromStorage() {
         try {
             if (!window.localStorage) return null;
             let found = null;
+            const prefixes = [MAIN_PREFIX_RANDOM, MAIN_PREFIX_THEME];
             for (let i = 0; i < localStorage.length; i++) {
                 const k = localStorage.key(i);
                 if (!k) continue;
-                // main keys look like 'quiz_random_v2::<sessionKey>' (exclude companion '::state' keys)
-                if (k.indexOf('quiz_random_v2::') === 0 && k.indexOf('::state') === -1) {
-                    const candidate = k.slice('quiz_random_v2::'.length);
-                    // prefer exact non-empty candidate
-                    if (candidate) {
-                        // if we already found another, bail out (ambiguous)
-                        if (found && found !== candidate) return null;
-                        found = candidate;
+                // exclude companion '::state' keys
+                if (k.indexOf('::state') !== -1) continue;
+                for (const pref of prefixes) {
+                    if (k.indexOf(pref) === 0) {
+                        const candidate = k.slice(pref.length);
+                        if (candidate) {
+                            if (found && found !== candidate) return null; // ambiguous
+                            found = candidate;
+                        }
                     }
                 }
             }
@@ -71,6 +108,8 @@
     }
 
     function saveState() {
+        // If suppression flag is set (clearing in progress), skip saving to avoid recreating keys
+        try { if (window.__quizStatePersistSuppress) { try { console.debug('[quizStatePersist] save suppressed'); } catch (e) {} return; } } catch (e) {}
         const snap = collectAnswersSnapshot();
         if (!snap) return;
         // NOTE: intentionally do not write the legacy quiz_progress_v1 snapshot anymore.
@@ -81,23 +120,33 @@
         try {
             const p = getUrlParams();
             let sessionKey = p.key || (window.quizSessionKey || null);
-            if (!sessionKey) sessionKey = findSessionKeyFromStorage();
+            let paramKey = null;
+            if (!sessionKey) {
+                sessionKey = findSessionKeyFromStorage();
+                if (!sessionKey) {
+                    paramKey = buildParamsSnapshotKey(p);
+                }
+            }
                 try { console.info('[quizStatePersist] saveState using sessionKey=', sessionKey); } catch (e) {}
-            if (sessionKey) {
-                const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+            if (sessionKey || paramKey) {
+                // determine which prefix to use for companion/main keys
+                let prefix = null;
+                if (sessionKey) prefix = resolvePrefixForSessionKey(sessionKey) || (p.mode === 'theme' ? MAIN_PREFIX_THEME : MAIN_PREFIX_RANDOM);
+                const companionKey = sessionKey ? (prefix + sessionKey + '::state') : paramKey;
                 // Persist only the items and timestamp to keep the object small
                 const small = { timestamp: snap.timestamp, items: snap.items };
                 safeSet(companionKey, JSON.stringify(small));
                 try { console.debug('[quizStatePersist] companion save ->', companionKey, small.items ? small.items.length : 0); } catch (e) {}
                 // Also update the main quiz_random_v2::<sessionKey> list to include answered/selected info
-                try {
-                    const mainKey = 'quiz_random_v2::' + sessionKey;
-                    let listRaw = safeGet(mainKey);
-                    try { console.info('[quizStatePersist] saveState mainKey=', mainKey, 'raw=', !!listRaw); } catch (e) {}
-                    let list = [];
-                    if (listRaw) {
-                        try { list = JSON.parse(listRaw); } catch (e) { list = []; }
-                    }
+                    try {
+                        if (sessionKey) {
+                            const mainKey = makeMainKey(sessionKey, p.mode) || (resolvePrefixForSessionKey(sessionKey) || MAIN_PREFIX_RANDOM) + sessionKey;
+                            let listRaw = safeGet(mainKey);
+                        try { console.info('[quizStatePersist] saveState mainKey=', mainKey, 'raw=', !!listRaw); } catch (e) {}
+                        let list = [];
+                        if (listRaw) {
+                            try { list = JSON.parse(listRaw); } catch (e) { list = []; }
+                        }
                     // Normalize to object form
                     const norm = list.map(it => {
                         if (it && typeof it === 'object' && it.id !== undefined) return it;
@@ -111,7 +160,10 @@
                         if (foundIdx >= 0) norm[foundIdx] = Object.assign({}, norm[foundIdx], newObj);
                         else norm.push(newObj);
                     });
-                    safeSet(mainKey, JSON.stringify(norm));
+                        safeSet(mainKey, JSON.stringify(norm));
+                    } else {
+                        // no sessionKey -> do not update main list
+                    }
                 } catch (e) { /* ignore main list update errors */ }
             }
         } catch (e) { /* ignore companion save errors */ }
@@ -123,8 +175,10 @@
             const p = getUrlParams();
             const sessionKey = p.key || (window.quizSessionKey || null);
             if (sessionKey) {
-                safeRemove('quiz_random_v2::' + sessionKey + '::state');
-                safeRemove('quiz_random_v2::' + sessionKey);
+                try { safeRemove(MAIN_PREFIX_RANDOM + sessionKey + '::state'); } catch (e) {}
+                try { safeRemove(MAIN_PREFIX_RANDOM + sessionKey); } catch (e) {}
+                try { safeRemove(MAIN_PREFIX_THEME + sessionKey + '::state'); } catch (e) {}
+                try { safeRemove(MAIN_PREFIX_THEME + sessionKey); } catch (e) {}
             }
         } catch (e) { /* ignore */ }
     }
@@ -138,6 +192,7 @@
         try {
             const p = getUrlParams();
             let sessionKey = p.key || (window.quizSessionKey || null);
+            let paramKey = null;
             let candidates = [];
             try {
                 for (let i = 0; i < localStorage.length; i++) {
@@ -145,21 +200,27 @@
                     if (k && k.indexOf('quiz_random_v2::') === 0 && k.indexOf('::state') === -1) candidates.push(k);
                 }
             } catch (e) { candidates = []; }
-            if (!sessionKey) sessionKey = findSessionKeyFromStorage();
-            try { console.info('[quizStatePersist] restoreState candidates=', candidates, 'chosenSessionKey=', sessionKey); } catch (e) {}
-            if (sessionKey) {
-                const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+            if (!sessionKey) {
+                sessionKey = findSessionKeyFromStorage();
+                if (!sessionKey) paramKey = buildParamsSnapshotKey(p);
+            }
+            try { console.info('[quizStatePersist] restoreState candidates=', candidates, 'chosenSessionKey=', sessionKey, 'paramKey=', paramKey); } catch (e) {}
+                if (sessionKey || paramKey) {
+                let prefix = null;
+                if (sessionKey) prefix = resolvePrefixForSessionKey(sessionKey) || (p.mode === 'theme' ? MAIN_PREFIX_THEME : MAIN_PREFIX_RANDOM);
+                const companionKey = sessionKey ? (prefix + sessionKey + '::state') : paramKey;
                 const compRaw = safeGet(companionKey);
                 try { console.debug('[quizStatePersist] restoreState: companionKey=', companionKey, 'found=', !!compRaw); } catch (e) {}
                 if (compRaw) {
                     let comp = null;
                     try { comp = JSON.parse(compRaw); } catch (e) { comp = null; }
                     try { console.info('[quizStatePersist] companion contents (truncated)=', comp && comp.items ? comp.items.slice(0,10) : comp); } catch (e) {}
-                    snap = { timestamp: comp.timestamp || new Date().toISOString(), params: getUrlParams(), items: comp.items || [] };
+                        snap = { timestamp: comp.timestamp || new Date().toISOString(), params: getUrlParams(), items: comp.items || [] };
                 } else {
                     try {
-                        const mainKey = 'quiz_random_v2::' + sessionKey;
-                        const mainRaw = safeGet(mainKey);
+                        const mainKey = sessionKey ? (prefix + sessionKey) : null;
+                        let mainRaw = null;
+                        if (mainKey) mainRaw = safeGet(mainKey);
                         try { console.info('[quizStatePersist] mainKey=', mainKey, 'rawPresent=', !!mainRaw); } catch (e) {}
                         if (mainRaw) {
                             const arr = JSON.parse(mainRaw);
@@ -320,9 +381,13 @@
             try {
                 const p = getUrlParams();
                 let sessionKey = p.key || (window.quizSessionKey || null);
-                if (!sessionKey) sessionKey = findSessionKeyFromStorage();
-                if (!sessionKey) return {};
-                const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+                let paramKey = null;
+                if (!sessionKey) {
+                    sessionKey = findSessionKeyFromStorage();
+                    if (!sessionKey) paramKey = buildParamsSnapshotKey(p);
+                }
+                if (!sessionKey && !paramKey) return {};
+                const companionKey = sessionKey ? ((resolvePrefixForSessionKey(sessionKey) || (p.mode === 'theme' ? MAIN_PREFIX_THEME : MAIN_PREFIX_RANDOM)) + sessionKey + '::state') : paramKey;
                 const compRaw = safeGet(companionKey);
                 if (compRaw) {
                     try {
@@ -333,7 +398,7 @@
                     } catch (e) { /* fallthrough */ }
                 }
                 // fallback to main list
-                const mainKey = 'quiz_random_v2::' + sessionKey;
+                const mainKey = makeMainKey(sessionKey, p.mode) || ((resolvePrefixForSessionKey(sessionKey) || MAIN_PREFIX_RANDOM) + sessionKey);
                 const mainRaw = safeGet(mainKey);
                 if (mainRaw) {
                     try {
@@ -352,6 +417,8 @@
         },
         // Save a single question's selected answers immediately. Used by submitSingleQuestion
         saveAnswer: function (questionId, selectedArray, index) {
+            // respect suppression from UI helper
+            try { if (window.__quizStatePersistSuppress) { try { console.debug('[quizStatePersist] saveAnswer suppressed'); } catch (e) {} return; } } catch (e) {}
             try {
                 // We intentionally no longer write legacy quiz_progress_v1 snapshots here.
                 // Instead, persist to companion session state and update the main quiz_random_v2 list.
@@ -360,9 +427,13 @@
                 try {
                     const p = getUrlParams();
                     let sessionKey = p.key || (window.quizSessionKey || null);
-                    if (!sessionKey) sessionKey = findSessionKeyFromStorage();
-                    if (sessionKey) {
-                        const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+                    let paramKey = null;
+                    if (!sessionKey) {
+                        sessionKey = findSessionKeyFromStorage();
+                        if (!sessionKey) paramKey = buildParamsSnapshotKey(p);
+                    }
+                    if (sessionKey || paramKey) {
+                        const companionKey = sessionKey ? ((resolvePrefixForSessionKey(sessionKey) || (p.mode === 'theme' ? MAIN_PREFIX_THEME : MAIN_PREFIX_RANDOM)) + sessionKey + '::state') : paramKey;
                         let compRaw = safeGet(companionKey);
                         let comp = null;
                         if (compRaw) {
@@ -376,22 +447,24 @@
                         safeSet(companionKey, JSON.stringify(comp));
                         // Also update the main quiz_random_v2::<sessionKey> list to include answered/selected info
                         try {
-                            const mainKey = 'quiz_random_v2::' + sessionKey;
-                            let listRaw = safeGet(mainKey);
-                            let list = [];
-                            if (listRaw) {
-                                try { list = JSON.parse(listRaw); } catch (e) { list = []; }
+                            if (sessionKey) {
+                                const mainKey = makeMainKey(sessionKey, p.mode) || ((resolvePrefixForSessionKey(sessionKey) || MAIN_PREFIX_RANDOM) + sessionKey);
+                                let listRaw = safeGet(mainKey);
+                                let list = [];
+                                if (listRaw) {
+                                    try { list = JSON.parse(listRaw); } catch (e) { list = []; }
+                                }
+                                // Normalize to object form
+                                const norm = list.map(it => {
+                                    if (it && typeof it === 'object' && it.id !== undefined) return it;
+                                    return { id: it, answered: false, selected: [] };
+                                });
+                                const foundIdx = norm.findIndex(it => String(it.id) === String(questionId));
+                                const newObj = { id: questionId, answered: true, selected: Array.isArray(selectedArray) ? selectedArray : [] };
+                                if (foundIdx >= 0) norm[foundIdx] = Object.assign({}, norm[foundIdx], newObj);
+                                else norm.push(newObj);
+                                safeSet(mainKey, JSON.stringify(norm));
                             }
-                            // Normalize to object form
-                            const norm = list.map(it => {
-                                if (it && typeof it === 'object' && it.id !== undefined) return it;
-                                return { id: it, answered: false, selected: [] };
-                            });
-                            const foundIdx = norm.findIndex(it => String(it.id) === String(questionId));
-                            const newObj = { id: questionId, answered: true, selected: Array.isArray(selectedArray) ? selectedArray : [] };
-                            if (foundIdx >= 0) norm[foundIdx] = Object.assign({}, norm[foundIdx], newObj);
-                            else norm.push(newObj);
-                            safeSet(mainKey, JSON.stringify(norm));
                         } catch (e) { /* ignore main list update errors */ }
                     }
                 } catch (e) { /* ignore companion save errors */ }

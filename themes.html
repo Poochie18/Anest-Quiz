@@ -54,6 +54,7 @@
     }
 
     function goToQuizWithTheme(themeId) {
+        try { window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); } catch (e) {}
         const url = new URL(window.location.origin + window.location.pathname.replace('themes.html','') + 'quiz.html');
         url.searchParams.set('mode', 'theme');
         url.searchParams.set('from', 'themes');

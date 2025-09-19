@@ -292,7 +292,7 @@
             <div class="row justify-content-center g-4">
                 <!-- Тематический квиз -->
                 <div class="col-md-4 col-sm-6">
-                    <a class="text-decoration-none" href="themes.html">
+                    <a class="text-decoration-none" href="themes.html" onclick="try{ window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); }catch(e){}">
                         <div class="quiz-card text-center p-4 rounded h-100">
                             <i class="fas fa-book-reader mb-3"></i>
                             <h3 class="mb-3" data-i18n="menu_themes">Тематический квиз</h3>
@@ -302,7 +302,7 @@
                 </div>
                 <!-- Экзамен -->
                 <div class="col-md-4 col-sm-6">
-                    <a class="text-decoration-none" href="exam.html">
+                    <a class="text-decoration-none" href="exam.html" onclick="try{ window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); }catch(e){}">
                         <div class="quiz-card text-center p-4 rounded h-100">
                             <i class="fas fa-graduation-cap mb-3"></i>
                             <h3 class="mb-3" data-i18n="menu_exam">Экзамен</h3>
@@ -312,7 +312,7 @@
                 </div>
                 <!-- Поиск -->
                 <div class="col-md-4 col-sm-6">
-                    <a class="text-decoration-none" href="search.html">
+                    <a class="text-decoration-none" href="search.html" onclick="try{ window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); }catch(e){}">
                         <div class="quiz-card text-center p-4 rounded h-100">
                             <i class="fas fa-search mb-3"></i>
                             <h3 class="mb-3" data-i18n="menu_search">Поиск</h3>
@@ -527,8 +527,10 @@
                 alert(window.i18n ? i18n.t('please_select_theme') : 'Please select a theme.');
                 return;
             }
-            currentQuiz = questions.filter(q => q.theme_id === themeId);
-            startQuiz(`${window.i18n ? i18n.t('theme_prefix') : 'Theme'}: ${themes.find(t => t.id === themeId).name}`);
+                // Clear existing theme/random snapshots before starting a new theme test
+                try { window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); } catch (e) {}
+                currentQuiz = questions.filter(q => q.theme_id === themeId);
+                startQuiz(`${window.i18n ? i18n.t('theme_prefix') : 'Theme'}: ${themes.find(t => t.id === themeId).name}`);
         }
 
         // Start random quiz
@@ -973,6 +975,8 @@
             alert('Пожалуйста, выберите тему');
             return;
         }
+        // Clear existing snapshots to ensure starting a fresh theme test
+        try { window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); } catch (e) {}
         // Переход на отдельную страницу с параметрами
         const theme = themes.find(t => t.id === themeId);
         const url = new URL(window.location.origin + window.location.pathname.replace('index.html','') + 'quiz.html');

@@ -58,7 +58,7 @@
             </div>
             <div class="row-controls">
                 <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Вниз" data-i18n-attr="title" data-i18n="down"><i class="fa fa-arrow-down"></i></button>
-                <a class="btn btn-danger shadow-sm flex-grow-1" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
+                <a class="btn btn-danger shadow-sm flex-grow-1" href="index.html" onclick="try{ window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); }catch(e){}" data-i18n="back_to_menu">Назад в меню</a>
             </div>
         </div>
     </div>
@@ -282,14 +282,14 @@
     displayResults(totalScore, maxPossibleScore, themeScores, questionResults);
         // clear persisted in-progress state after final submission (if persistence is present)
         try { if (window.quizStatePersist && typeof window.quizStatePersist.clear === 'function') window.quizStatePersist.clear(); } catch (e) { }
-        // also clear any stored random question set for this quiz
+        // also clear any stored question set for this quiz (random or theme)
         try {
-            // prefer explicit session key stored on window
             if (window.quizSessionKey) {
-                localStorage.removeItem('quiz_random_v2::' + window.quizSessionKey);
+                try { localStorage.removeItem('quiz_random_v2::' + window.quizSessionKey); } catch (e) {}
+                try { localStorage.removeItem('quiz_theme_v1::' + window.quizSessionKey); } catch (e) {}
             } else {
                 const randomKey = 'quiz_random_v1::' + (window.location.pathname || 'quiz') + '::' + JSON.stringify({ mode: params.get('mode'), from: params.get('from'), themeId: params.get('themeId'), count: params.get('count') });
-                localStorage.removeItem(randomKey);
+                try { localStorage.removeItem(randomKey); } catch (e) {}
             }
         } catch (e) { }
     }
@@ -300,7 +300,7 @@
         const submitBtn = document.querySelector('#quiz-controls .btn-success');
         if (submitBtn) {
             submitBtn.disabled = true;
-            submitBtn.textContent = window.i18n ? i18n.t('test_completed') : 'Тест завершен';
+            submitBtn.textContent = window.i18n ? i18n.t('Тест завершен') : 'Тест завершен';
         }
         const resultsDiv = document.getElementById('results');
         resultsDiv.style.display = 'block';
@@ -336,7 +336,7 @@
             </ul>
             <hr>
             ${detailedResultsHtml}
-            <a class="btn btn-primary" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
+            <a class="btn btn-primary" href="index.html" onclick="try{ window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); }catch(e){}" data-i18n="back_to_menu">Назад в меню</a>
         `;
     }
 
@@ -365,9 +365,76 @@
 
         // build quiz
         if (mode === 'theme' && themeId) {
-            currentQuiz = questions.filter(q => q.theme_id === themeId);
+            // Theme-mode should reuse an existing key on refresh (if present).
+            // Only generate a new per-start key when none is supplied. When a new
+            // key is created, remove any leftover quiz_theme_v1::* keys (including ::state)
+            // to avoid overlapping snapshots from previous runs.
+            function makeThemeKey() {
+                const rnd = Math.random().toString(36).slice(2, 10);
+                return 't_' + Date.now().toString(36) + '_' + rnd;
+            }
+
+            // Prefer explicit 'key' param in URL, then session param, then existing window state
+            let sessionKey = params.get('key') || params.get('session') || window.quizSessionKey || null;
+            let idList = null;
+            try {
+                if (sessionKey) {
+                    const data = localStorage.getItem('quiz_theme_v1::' + sessionKey);
+                    if (data) {
+                        const parsed = JSON.parse(data);
+                        if (Array.isArray(parsed) && parsed.length > 0) idList = parsed;
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            // If no session key provided, create a new one and clear old theme keys
+            if (!sessionKey) {
+                sessionKey = makeThemeKey();
+                try {
+                    const keys = Object.keys(localStorage || {});
+                    for (const k of keys) {
+                        if (!k) continue;
+                        if (k.indexOf('quiz_theme_v1::') === 0) {
+                            try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            // If we still don't have idList (either missing storage or first-run with key), build and persist under the chosen key
+            if (!idList) {
+                idList = questions.filter(q => String(q.theme_id) === String(themeId)).map(q => q.id);
+                try { localStorage.setItem('quiz_theme_v1::' + sessionKey, JSON.stringify(idList)); } catch (e) { /* ignore */ }
+            }
+
+            // update URL with key param so persistence picks it up on reload (do not regenerate key on refresh)
+            try {
+                const u = new URL(window.location.href);
+                if (!u.searchParams.get('key')) {
+                    u.searchParams.set('key', sessionKey);
+                    window.history.replaceState(null, '', u.toString());
+                    params.set('key', sessionKey);
+                }
+            } catch (e) { /* ignore */ }
+
+            // expose for other code to clear later and for state-persist to detect
+            window.quizSessionKey = sessionKey;
+
+            // build currentQuiz from idList to preserve order
+            currentQuiz = idList.map(idVal => questions.find(q => String(q.id) === String(idVal))).filter(Boolean);
+            // If mapping fails (e.g., questions changed) and currentQuiz is empty,
+            // rebuild from available questions for this theme and persist under the session key.
+            if ((!currentQuiz || currentQuiz.length === 0) && questions && questions.length > 0) {
+                const rebuilt = questions.filter(q => String(q.theme_id) === String(themeId));
+                if (rebuilt && rebuilt.length > 0) {
+                    currentQuiz = rebuilt;
+                    try { localStorage.setItem('quiz_theme_v1::' + sessionKey, JSON.stringify(currentQuiz.map(q => q.id))); } catch (e) { /* ignore */ }
+                }
+            }
             const themeName = themes.find(t => t.id === themeId)?.name || '';
             startQuiz(`${window.i18n ? i18n.t('theme_prefix') : 'Тема'}: ${themeName}`);
+            // ensure persisted state (answers storage key) includes the key; trigger save so state-persist picks it up
+            try { if (window.quizStatePersist && typeof window.quizStatePersist.save === 'function') window.quizStatePersist.save(); } catch (e) { }
         } else if (mode === 'random' && count > 0) {
             // Random mode with session key:
             // - If URL contains `key`, use it to load persisted question ids

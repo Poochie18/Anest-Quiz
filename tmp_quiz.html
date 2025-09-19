@@ -58,7 +58,7 @@
             </div>
             <div class="row-controls">
                 <button class="btn btn-outline-secondary" onclick="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});" title="Вниз" data-i18n-attr="title" data-i18n="down"><i class="fa fa-arrow-down"></i></button>
-                <a class="btn btn-danger shadow-sm flex-grow-1" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
+                <a class="btn btn-danger shadow-sm flex-grow-1" href="index.html" onclick="try{ window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); }catch(e){}" data-i18n="back_to_menu">Назад в меню</a>
             </div>
         </div>
     </div>
@@ -290,7 +290,7 @@
             </ul>
             <hr>
             ${detailedResultsHtml}
-            <a class="btn btn-primary" href="index.html" data-i18n="back_to_menu">Назад в меню</a>
+            <a class="btn btn-primary" href="index.html" onclick="try{ window.uiHelpers && window.uiHelpers._clearAllQuizSnapshots && window.uiHelpers._clearAllQuizSnapshots(); }catch(e){}" data-i18n="back_to_menu">Назад в меню</a>
         `;
     }
 
