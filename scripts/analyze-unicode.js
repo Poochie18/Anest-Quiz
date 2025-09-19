@@ -1,5 +1,7 @@
 // Скрипт для анализа Unicode символов в JSON файлах
 const fs = require('fs');
+// QUIET: set environment variable QUIET=false to enable console output when running this script
+const QUIET = (process.env.QUIET === undefined) ? true : (String(process.env.QUIET).toLowerCase() !== 'false');
 
 function analyzeUnicodeChars(text, charToAnalyze = 'і') {
     const results = [];
@@ -26,14 +28,14 @@ function analyzeUnicodeChars(text, charToAnalyze = 'і') {
 
 function analyzeFile(fileName) {
     try {
-        console.log(`\nАнализ файла: ${fileName}`);
-        console.log('='.repeat(50));
+        if (!QUIET) console.log(`\nАнализ файла: ${fileName}`);
+        if (!QUIET) console.log('='.repeat(50));
         
         const content = fs.readFileSync(fileName, 'utf8');
         const results = analyzeUnicodeChars(content, 'і');
         
         if (results.length === 0) {
-            console.log('Символ "і" не найден в файле');
+            if (!QUIET) console.log('Символ "і" не найден в файле');
             return;
         }
         
@@ -46,20 +48,20 @@ function analyzeFile(fileName) {
             groupedResults[result.unicode].push(result);
         });
         
-        console.log(`Найдено ${results.length} вхождений символа "і"`);
-        console.log('\nГруппировка по Unicode кодам:');
+    if (!QUIET) console.log(`Найдено ${results.length} вхождений символа "і"`);
+    if (!QUIET) console.log('\nГруппировка по Unicode кодам:');
         
         Object.keys(groupedResults).forEach(unicode => {
             const group = groupedResults[unicode];
-            console.log(`\n${unicode} (встречается ${group.length} раз):`);
-            console.log(`  Символ: "${group[0].char}"`);
-            console.log(`  Decimal: ${group[0].codePoint}`);
+            if (!QUIET) console.log(`\n${unicode} (встречается ${group.length} раз):`);
+            if (!QUIET) console.log(`  Символ: "${group[0].char}"`);
+            if (!QUIET) console.log(`  Decimal: ${group[0].codePoint}`);
             
             // Показываем несколько примеров контекста
             const exampleCount = Math.min(3, group.length);
-            console.log(`  Примеры контекста (${exampleCount} из ${group.length}):`);
+            if (!QUIET) console.log(`  Примеры контекста (${exampleCount} из ${group.length}):`);
             for (let i = 0; i < exampleCount; i++) {
-                console.log(`    "${group[i].context}"`);
+                if (!QUIET) console.log(`    "${group[i].context}"`);
             }
         });
         
@@ -72,8 +74,8 @@ function analyzeFile(fileName) {
 analyzeFile('../Quest3.json');
 
 // Также проверим, какие символы могут вводиться с клавиатуры
-console.log('\n\nВозможные варианты символа "і" с клавиатуры:');
-console.log('='.repeat(50));
+if (!QUIET) console.log('\n\nВозможные варианты символа "і" с клавиатуры:');
+if (!QUIET) console.log('='.repeat(50));
 
 const possibleVariants = [
     { char: 'і', name: 'CYRILLIC SMALL LETTER BYELORUSSIAN-UKRAINIAN I', code: 0x0456 },
@@ -91,7 +93,7 @@ const possibleVariants = [
 
 possibleVariants.forEach(variant => {
     const hex = variant.code.toString(16).toUpperCase().padStart(4, '0');
-    console.log(`"${variant.char}" - U+${hex} (${variant.code}) - ${variant.name}`);
+    if (!QUIET) console.log(`"${variant.char}" - U+${hex} (${variant.code}) - ${variant.name}`);
 });
 
-console.log('\nРекомендация: Нормализовать все варианты к U+0456 (кириллический "і")');
+if (!QUIET) console.log('\nРекомендация: Нормализовать все варианты к U+0456 (кириллический "і")');

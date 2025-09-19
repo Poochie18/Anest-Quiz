@@ -274,6 +274,16 @@
 <body>
     
 
+    <script>
+        (function(){
+            try {
+                if (typeof window === 'undefined') return;
+                if (window.__QUIET_CONSOLE === undefined) window.__QUIET_CONSOLE = true;
+                if (!window.__QUIET_CONSOLE) return;
+                ['log','info','debug','warn'].forEach(function(m){ if (console && console[m]) { console['__'+m]=console[m]; console[m]=function(){}; } });
+            } catch (e) {}
+        })();
+    </script>
     <div class="quiz-container">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <div id="breadcrumbs"></div>
@@ -360,17 +370,17 @@
         // Control panel visibility functions
         function showControls() {
             const controls = document.getElementById('quiz-controls');
-            if (controls) {
+                if (controls) {
                 controls.style.display = 'flex';
-                console.log('Controls shown');
+                try { if (window && window.__QUIET_CONSOLE === false) console.log('Controls shown'); } catch (e) {}
             }
         }
 
         function hideControls() {
             const controls = document.getElementById('quiz-controls');
-            if (controls) {
+                if (controls) {
                 controls.style.display = 'none';
-                console.log('Controls hidden');
+                try { if (window && window.__QUIET_CONSOLE === false) console.log('Controls hidden'); } catch (e) {}
             }
         }
 
@@ -380,7 +390,7 @@
         // Load JSON files
         async function loadJSONFiles() {
             try {
-                console.log('Attempting to load JSON files...');
+                try { if (window && window.__QUIET_CONSOLE === false) console.log('Attempting to load JSON files...'); } catch (e) {}
                 const [themesRes, questionsRes, answersRes] = await Promise.all([
                     fetch('Tema3.json'),
                     fetch('Quest3.json'),
@@ -390,15 +400,15 @@
                 const questionsJson = await questionsRes.json();
                 const answersJson = await answersRes.json();
 
-                console.log('JSON files loaded successfully. Parsing...');
+                try { if (window && window.__QUIET_CONSOLE === false) console.log('JSON files loaded successfully. Parsing...'); } catch (e) {}
 
                 themes = parseThemesJSON(themesJson);
                 questions = parseQuestionsJSON(questionsJson);
                 answers = parseAnswersJSON(answersJson);
 
-                console.log('Themes:', themes);
-                console.log('Questions:', questions);
-                console.log('Answers:', answers);
+                try { if (window && window.__QUIET_CONSOLE === false) console.log('Themes:', themes); } catch (e) {}
+                try { if (window && window.__QUIET_CONSOLE === false) console.log('Questions:', questions); } catch (e) {}
+                try { if (window && window.__QUIET_CONSOLE === false) console.log('Answers:', answers); } catch (e) {}
 
                 if (themes.length === 0) {
                     console.warn('No themes parsed. Check Tema3.json structure and parseThemesJSON function.');
@@ -442,20 +452,20 @@
 
         // Parse Themes from JSON
         function parseThemesJSON(json) {
-            console.log('Parsing themes from JSON...');
+            try { if (window && window.__QUIET_CONSOLE === false) console.log('Parsing themes from JSON...'); } catch (e) {}
             // Ожидается, что json — это массив объектов с полями _KodTema и _Tema
             const parsedThemes = Array.isArray(json)
                 ? json.map(item => ({ id: item._KodTema, name: item._Tema }))
                 : (json.DATAPACKET && json.DATAPACKET.ROWDATA && Array.isArray(json.DATAPACKET.ROWDATA.ROW)
                     ? json.DATAPACKET.ROWDATA.ROW.map(item => ({ id: item._KodTema, name: item._Tema }))
                     : []);
-            console.log('Parsed themes:', parsedThemes);
+            try { if (window && window.__QUIET_CONSOLE === false) console.log('Parsed themes:', parsedThemes); } catch (e) {}
             return parsedThemes;
         }
 
         // Parse Questions from JSON
         function parseQuestionsJSON(json) {
-            console.log('Parsing questions from JSON...');
+            try { if (window && window.__QUIET_CONSOLE === false) console.log('Parsing questions from JSON...'); } catch (e) {}
             // Используем текст вопросов и подсказок как есть, без декодирования
             const parsedQuestions = Array.isArray(json)
                 ? json.map(item => ({
@@ -482,13 +492,13 @@
                         help: item._Help
                     }))
                     : []);
-            console.log('Parsed questions:', parsedQuestions);
+            try { if (window && window.__QUIET_CONSOLE === false) console.log('Parsed questions:', parsedQuestions); } catch (e) {}
             return parsedQuestions;
         }
 
         // Parse Answers from JSON
         function parseAnswersJSON(json) {
-            console.log('Parsing answers from JSON...');
+            try { if (window && window.__QUIET_CONSOLE === false) console.log('Parsing answers from JSON...'); } catch (e) {}
             // Используем текст ответов как есть, без декодирования
             const parsedAnswers = Array.isArray(json)
                 ? json.map(item => ({
@@ -505,13 +515,17 @@
                         weight: parseInt(item._VesAnswer) || 0
                     }))
                     : []);
-            console.log('Parsed answers:', parsedAnswers);
+            try { if (window && window.__QUIET_CONSOLE === false) console.log('Parsed answers:', parsedAnswers); } catch (e) {}
             return parsedAnswers;
         }
 
         // Populate theme dropdown
         function populateThemeSelect() {
             const select = document.getElementById('themeSelect');
+            // If the select is not present on this page (index vs themes), do nothing.
+            if (!select) return;
+            // Clear existing options to avoid duplicates on repeated calls
+            try { select.innerHTML = ''; } catch (e) {}
             themes.forEach(theme => {
                 const option = document.createElement('option');
                 option.value = theme.id;
@@ -522,8 +536,9 @@
 
         // Start quiz by theme
         function startThemeQuiz() {
-            const themeId = document.getElementById('themeSelect').value;
-            if (!themeId) {
+            const themeEl = document.getElementById('themeSelect');
+            const themeId = themeEl ? themeEl.value : null;
+            if (!themeEl || !themeId) {
                 alert(window.i18n ? i18n.t('please_select_theme') : 'Please select a theme.');
                 return;
             }
@@ -562,12 +577,14 @@
             }
             // Reset individual results
             individualResults = [];
-            document.getElementById('menu').style.display = 'none';
-            document.getElementById('quiz').style.display = 'block';
-            document.getElementById('quizTitle').textContent = title;
-            showControls(); // Show controls when quiz starts
+            try { const m = document.getElementById('menu'); if (m) m.style.display = 'none'; } catch (e) {}
+            try { const q = document.getElementById('quiz'); if (q) q.style.display = 'block'; } catch (e) {}
+            try { const qt = document.getElementById('quizTitle'); if (qt) qt.textContent = title; } catch (e) {}
+            try { showControls(); } catch (e) {}
             const questionsDiv = document.getElementById('questions');
-            questionsDiv.innerHTML = '';
+            if (questionsDiv) {
+                try { questionsDiv.innerHTML = ''; } catch (e) {}
+            }
             currentQuiz.forEach((question, index) => {
                 const questionDiv = document.createElement('div');
                 questionDiv.className = 'question';
@@ -585,7 +602,9 @@
                         <div id="result-${question.id}" class="mt-2"></div>
                     </div>
                 `;
-                questionsDiv.appendChild(questionDiv);
+                if (questionsDiv) {
+                    try { questionsDiv.appendChild(questionDiv); } catch (e) {}
+                }
             });
         }
 
@@ -807,9 +826,9 @@
 
         // Display results
         function displayResults(totalScore, maxPossibleScore, themeScores, questionResults) {
-            document.getElementById('quiz').style.display = 'none';
+            try { const q = document.getElementById('quiz'); if (q) q.style.display = 'none'; } catch (e) {}
             const resultsDiv = document.getElementById('results');
-            resultsDiv.style.display = 'block';
+            try { if (resultsDiv) resultsDiv.style.display = 'block'; } catch (e) {}
 
             let detailedResultsHtml = questionResults.map((qr, index) => {
                 const isCorrect = qr.userScore === qr.maxScore && qr.maxScore > 0;
@@ -865,10 +884,10 @@
 
         // Reset quiz
         function resetQuiz() {
-            document.getElementById('results').style.display = 'none';
-            document.getElementById('menu').style.display = 'block';
-            document.getElementById('themeSelect').value = '';
-            hideControls(); // Hide controls when returning to menu
+                try { const res = document.getElementById('results'); if (res) res.style.display = 'none'; } catch (e) {}
+                try { const m = document.getElementById('menu'); if (m) m.style.display = 'block'; } catch (e) {}
+            try { const ts = document.getElementById('themeSelect'); if (ts) ts.value = ''; } catch (e) {}
+                try { hideControls(); } catch (e) {} // Hide controls when returning to menu
         }
 
     // Statistics feature removed
@@ -909,11 +928,11 @@
     const themesPage = document.getElementById('themesPage');
     const randomPage = document.getElementById('randomPage');
 
-        menu.style.display = page === 'home' ? 'block' : 'none';
-        quiz.style.display = page === 'quiz' ? 'block' : 'none';
+        try { if (menu) menu.style.display = page === 'home' ? 'block' : 'none'; } catch (e) {}
+        try { if (quiz) quiz.style.display = page === 'quiz' ? 'block' : 'none'; } catch (e) {}
     // statistics page removed
-        themesPage.style.display = page === 'themes' ? 'block' : 'none';
-        randomPage.style.display = page === 'random' ? 'block' : 'none';
+        try { if (themesPage) themesPage.style.display = page === 'themes' ? 'block' : 'none'; } catch (e) {}
+        try { if (randomPage) randomPage.style.display = page === 'random' ? 'block' : 'none'; } catch (e) {}
 
         // show language switcher only on home
         const langSw = document.getElementById('langSwitcher');
@@ -926,8 +945,8 @@
 
         // hide selectors on quiz page
         if (page === 'quiz') {
-            themesPage.style.display = 'none';
-            randomPage.style.display = 'none';
+            try { if (themesPage) themesPage.style.display = 'none'; } catch (e) {}
+            try { if (randomPage) randomPage.style.display = 'none'; } catch (e) {}
         }
     }
 
@@ -946,7 +965,7 @@
                     localStorage.removeItem(k);
                 }
             }
-            if (removed.length) console.log('Cleared storage keys on index load:', removed);
+            if (removed.length) try { if (window && window.__QUIET_CONSOLE === false) console.log('Cleared storage keys on index load:', removed); } catch (e) {}
         } catch (e) { /* ignore */ }
         try {
             if (window.quizData) {
@@ -970,8 +989,9 @@
     <script>
     // Модифицируем существующие функции
     function startThemeQuiz() {
-        const themeId = document.getElementById('themeSelect').value;
-        if (!themeId) {
+        const themeEl = document.getElementById('themeSelect');
+        const themeId = themeEl ? themeEl.value : null;
+        if (!themeEl || !themeId) {
             alert('Пожалуйста, выберите тему');
             return;
         }

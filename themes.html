@@ -20,6 +20,16 @@
 <body>
     <div class="container-narrow">
         <div class="d-flex justify-content-between align-items-center mb-3">
+    <script>
+        (function(){
+            try {
+                if (typeof window === 'undefined') return;
+                if (window.__QUIET_CONSOLE === undefined) window.__QUIET_CONSOLE = true;
+                if (!window.__QUIET_CONSOLE) return;
+                ['log','info','debug','warn'].forEach(function(m){ if (console && console[m]) { console['__'+m]=console[m]; console[m]=function(){}; } });
+            } catch (e) {}
+        })();
+    </script>
             <div id="breadcrumbs"></div>
             <div id="backBtn"></div>
         </div>

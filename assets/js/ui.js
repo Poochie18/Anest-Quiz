@@ -29,23 +29,23 @@ window.uiHelpers = (function () {
                 const k = localStorage.key(i);
                 if (!k) continue;
                 if (k.indexOf('quiz_snapshot::') === 0) {
-                    console.info('[uiHelpers] clearing param-based snapshot key=', k);
+                    try { if (window && window.__QUIET_CONSOLE === false) console.info('[uiHelpers] clearing param-based snapshot key=', k); } catch (e) {}
                     try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
                     continue;
                 }
                 if (k.indexOf('quiz_theme_v1::') === 0) {
-                    console.info('[uiHelpers] clearing quiz_theme key=', k);
+                    try { if (window && window.__QUIET_CONSOLE === false) console.info('[uiHelpers] clearing quiz_theme key=', k); } catch (e) {}
                     try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
                     continue;
                 }
                 if (k.indexOf('quiz_random_v2::') === 0 || k.indexOf('quiz_random_v1::') === 0) {
-                    console.info('[uiHelpers] clearing quiz_random key=', k);
+                    try { if (window && window.__QUIET_CONSOLE === false) console.info('[uiHelpers] clearing quiz_random key=', k); } catch (e) {}
                     try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
                     continue;
                 }
             }
         } catch (e) {
-            console.debug('[uiHelpers] clearAllQuizSnapshots failed', e);
+            try { if (window && window.__QUIET_CONSOLE === false) console.debug('[uiHelpers] clearAllQuizSnapshots failed', e); } catch (ee) {}
         }
         // Prevent auto-save from immediately recreating the keys (pagehide/beforeunload)
         try {

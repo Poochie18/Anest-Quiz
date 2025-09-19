@@ -2,6 +2,8 @@ const express = require('express');
 const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
+// QUIET: set process.env.QUIET to 'false' to enable logs in development
+const QUIET = (process.env.QUIET === undefined) ? true : (String(process.env.QUIET).toLowerCase() !== 'false');
 
 // Middleware для загрузки переменных окружения
 require('dotenv').config();
@@ -72,15 +74,17 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Anest Quiz server is running on http://localhost:${port}`);
-    console.log(`Main app: http://localhost:${port}`);
-    console.log(`Search page: http://localhost:${port}/search`);
-    
-    // Проверяем наличие Firebase переменных
+    if (!QUIET) {
+        console.log(`Anest Quiz server is running on http://localhost:${port}`);
+        console.log(`Main app: http://localhost:${port}`);
+        console.log(`Search page: http://localhost:${port}/search`);
+    }
+    // Check Firebase env and warn only when not in QUIET mode (but always use console.error for missing critical vars)
     if (!process.env.FIREBASE_API_KEY) {
-        console.warn('⚠️  Firebase переменные окружения не найдены. Проверьте файл .env');
+        console.error('Missing Firebase environment variables');
+        if (!QUIET) console.warn('⚠️  Firebase configuration not found. Provide a .env file');
     } else {
-        console.log('✅ Firebase конфигурация загружена из переменных окружения');
+        if (!QUIET) console.log('✅ Firebase configuration loaded from environment');
     }
 });
 

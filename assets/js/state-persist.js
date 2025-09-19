@@ -109,7 +109,7 @@
 
     function saveState() {
         // If suppression flag is set (clearing in progress), skip saving to avoid recreating keys
-        try { if (window.__quizStatePersistSuppress) { try { console.debug('[quizStatePersist] save suppressed'); } catch (e) {} return; } } catch (e) {}
+    try { if (window.__quizStatePersistSuppress) { try { if (window && window.__QUIET_CONSOLE === false) console.debug('[quizStatePersist] save suppressed'); } catch (e) {} return; } } catch (e) {}
         const snap = collectAnswersSnapshot();
         if (!snap) return;
         // NOTE: intentionally do not write the legacy quiz_progress_v1 snapshot anymore.
@@ -127,7 +127,7 @@
                     paramKey = buildParamsSnapshotKey(p);
                 }
             }
-                try { console.info('[quizStatePersist] saveState using sessionKey=', sessionKey); } catch (e) {}
+                try { if (window && window.__QUIET_CONSOLE === false) console.info('[quizStatePersist] saveState using sessionKey=', sessionKey); } catch (e) {}
             if (sessionKey || paramKey) {
                 // determine which prefix to use for companion/main keys
                 let prefix = null;
@@ -136,13 +136,13 @@
                 // Persist only the items and timestamp to keep the object small
                 const small = { timestamp: snap.timestamp, items: snap.items };
                 safeSet(companionKey, JSON.stringify(small));
-                try { console.debug('[quizStatePersist] companion save ->', companionKey, small.items ? small.items.length : 0); } catch (e) {}
+                try { if (window && window.__QUIET_CONSOLE === false) console.debug('[quizStatePersist] companion save ->', companionKey, small.items ? small.items.length : 0); } catch (e) {}
                 // Also update the main quiz_random_v2::<sessionKey> list to include answered/selected info
                     try {
                         if (sessionKey) {
                             const mainKey = makeMainKey(sessionKey, p.mode) || (resolvePrefixForSessionKey(sessionKey) || MAIN_PREFIX_RANDOM) + sessionKey;
                             let listRaw = safeGet(mainKey);
-                        try { console.info('[quizStatePersist] saveState mainKey=', mainKey, 'raw=', !!listRaw); } catch (e) {}
+                        try { if (window && window.__QUIET_CONSOLE === false) console.info('[quizStatePersist] saveState mainKey=', mainKey, 'raw=', !!listRaw); } catch (e) {}
                         let list = [];
                         if (listRaw) {
                             try { list = JSON.parse(listRaw); } catch (e) { list = []; }
@@ -204,31 +204,31 @@
                 sessionKey = findSessionKeyFromStorage();
                 if (!sessionKey) paramKey = buildParamsSnapshotKey(p);
             }
-            try { console.info('[quizStatePersist] restoreState candidates=', candidates, 'chosenSessionKey=', sessionKey, 'paramKey=', paramKey); } catch (e) {}
+                try { if (window && window.__QUIET_CONSOLE === false) console.info('[quizStatePersist] restoreState candidates=', candidates, 'chosenSessionKey=', sessionKey, 'paramKey=', paramKey); } catch (e) {}
                 if (sessionKey || paramKey) {
                 let prefix = null;
                 if (sessionKey) prefix = resolvePrefixForSessionKey(sessionKey) || (p.mode === 'theme' ? MAIN_PREFIX_THEME : MAIN_PREFIX_RANDOM);
                 const companionKey = sessionKey ? (prefix + sessionKey + '::state') : paramKey;
                 const compRaw = safeGet(companionKey);
-                try { console.debug('[quizStatePersist] restoreState: companionKey=', companionKey, 'found=', !!compRaw); } catch (e) {}
+                try { if (window && window.__QUIET_CONSOLE === false) console.debug('[quizStatePersist] restoreState: companionKey=', companionKey, 'found=', !!compRaw); } catch (e) {}
                 if (compRaw) {
                     let comp = null;
                     try { comp = JSON.parse(compRaw); } catch (e) { comp = null; }
-                    try { console.info('[quizStatePersist] companion contents (truncated)=', comp && comp.items ? comp.items.slice(0,10) : comp); } catch (e) {}
+                    try { if (window && window.__QUIET_CONSOLE === false) console.info('[quizStatePersist] companion contents (truncated)=', comp && comp.items ? comp.items.slice(0,10) : comp); } catch (e) {}
                         snap = { timestamp: comp.timestamp || new Date().toISOString(), params: getUrlParams(), items: comp.items || [] };
                 } else {
                     try {
                         const mainKey = sessionKey ? (prefix + sessionKey) : null;
                         let mainRaw = null;
                         if (mainKey) mainRaw = safeGet(mainKey);
-                        try { console.info('[quizStatePersist] mainKey=', mainKey, 'rawPresent=', !!mainRaw); } catch (e) {}
+                        try { if (window && window.__QUIET_CONSOLE === false) console.info('[quizStatePersist] mainKey=', mainKey, 'rawPresent=', !!mainRaw); } catch (e) {}
                         if (mainRaw) {
                             const arr = JSON.parse(mainRaw);
                             const items = (Array.isArray(arr) ? arr.map((it, idx) => {
                                 if (it && typeof it === 'object' && it.id !== undefined) return { questionId: it.id, index: idx, selected: it.selected || [] };
                                 return { questionId: it, index: idx, selected: [] };
                             }) : []);
-                            try { console.info('[quizStatePersist] main contents (truncated)=', Array.isArray(arr) ? arr.slice(0,10) : arr); } catch (e) {}
+                            try { if (window && window.__QUIET_CONSOLE === false) console.info('[quizStatePersist] main contents (truncated)=', Array.isArray(arr) ? arr.slice(0,10) : arr); } catch (e) {}
                             if (items.length) snap = { timestamp: new Date().toISOString(), params: getUrlParams(), items };
                         }
                     } catch (e) { /* ignore */ }
@@ -237,7 +237,7 @@
         } catch (e) { /* ignore companion restore errors */ }
 
         if (!snap) {
-            try { console.debug('[quizStatePersist] restoreState -> no snapshot found'); } catch (e) {}
+            try { if (window && window.__QUIET_CONSOLE === false) console.debug('[quizStatePersist] restoreState -> no snapshot found'); } catch (e) {}
             return false;
         }
 
@@ -253,7 +253,7 @@
 
         // If a restore is already in progress, don't start another
         if (window._quizStatePersistRestoreInProgress) {
-            try { console.info('[quizStatePersist] restore already in progress'); } catch (e) {}
+            try { if (window && window.__QUIET_CONSOLE === false) console.info('[quizStatePersist] restore already in progress'); } catch (e) {}
             return true;
         }
         window._quizStatePersistRestoreInProgress = true;
@@ -293,7 +293,7 @@
                                 inp.checked = true;
                                 inp.disabled = true;
                                 anyApplied = true;
-                                try { console.info('[quizStatePersist] applied selection for q=', qid, 'value=', s, 'inputId=', inp.id); } catch (e) {}
+                                            try { if (window && window.__QUIET_CONSOLE === false) console.info('[quizStatePersist] applied selection for q=', qid, 'value=', s, 'inputId=', inp.id); } catch (e) {}
                             }
                         }
                     });
@@ -418,7 +418,7 @@
         // Save a single question's selected answers immediately. Used by submitSingleQuestion
         saveAnswer: function (questionId, selectedArray, index) {
             // respect suppression from UI helper
-            try { if (window.__quizStatePersistSuppress) { try { console.debug('[quizStatePersist] saveAnswer suppressed'); } catch (e) {} return; } } catch (e) {}
+            try { if (window.__quizStatePersistSuppress) { try { if (window && window.__QUIET_CONSOLE === false) console.debug('[quizStatePersist] saveAnswer suppressed'); } catch (e) {} return; } } catch (e) {}
             try {
                 // We intentionally no longer write legacy quiz_progress_v1 snapshots here.
                 // Instead, persist to companion session state and update the main quiz_random_v2 list.
