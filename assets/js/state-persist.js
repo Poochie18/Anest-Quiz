@@ -1,7 +1,7 @@
 // Small client-side persistence for quiz progress
 // Saves selected answers and basic params to localStorage so users can resume later.
 (function () {
-    const STORAGE_PREFIX = 'quiz_progress_v1::';
+    // legacy quiz_progress_v1 removed: do not create or read that key anymore
 
     function safeGet(key) {
         try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -19,25 +19,49 @@
             mode: params.get('mode'),
             from: params.get('from'),
             themeId: params.get('themeId'),
-            count: params.get('count')
+            count: params.get('count'),
+            key: params.get('key') || params.get('session') || null
         };
     }
 
-    function storageKey() {
-        // include path and params so different quizzes don't clobber each other
-        const p = getUrlParams();
-        const base = window.location.pathname || 'quiz';
-        return STORAGE_PREFIX + base + '::' + JSON.stringify(p);
+    // Try to heuristically find a single quiz_random_v2::<sessionKey> in localStorage
+    // This is a safe fallback when the URL lost the `key` parameter and window.quizSessionKey
+    // is not set (for example after a navigation which didn't preserve the param).
+    function findSessionKeyFromStorage() {
+        try {
+            if (!window.localStorage) return null;
+            let found = null;
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (!k) continue;
+                // main keys look like 'quiz_random_v2::<sessionKey>' (exclude companion '::state' keys)
+                if (k.indexOf('quiz_random_v2::') === 0 && k.indexOf('::state') === -1) {
+                    const candidate = k.slice('quiz_random_v2::'.length);
+                    // prefer exact non-empty candidate
+                    if (candidate) {
+                        // if we already found another, bail out (ambiguous)
+                        if (found && found !== candidate) return null;
+                        found = candidate;
+                    }
+                }
+            }
+            return found;
+        } catch (e) { return null; }
     }
 
+    // legacy storageKey function removed. We no longer write full snapshots under
+    // quiz_progress_v1::. Persistence now uses quiz_random_v2::<sessionKey> and
+    // quiz_random_v2::<sessionKey>::state companion keys.
+
     function collectAnswersSnapshot() {
-        if (!window.currentQuiz || !Array.isArray(window.currentQuiz)) return null;
+        const _cq = (typeof window !== 'undefined' && window.currentQuiz) ? window.currentQuiz : (typeof currentQuiz !== 'undefined' ? currentQuiz : null);
+        if (!_cq || !Array.isArray(_cq)) return null;
         const snapshot = {
             timestamp: new Date().toISOString(),
             params: getUrlParams(),
             items: []
         };
-        window.currentQuiz.forEach((q, idx) => {
+        _cq.forEach((q, idx) => {
             const name = `q${q.id}`;
             const inputs = document.querySelectorAll(`input[name="${name}"]:checked`);
             const selected = Array.from(inputs).map(i => i.value);
@@ -49,59 +73,193 @@
     function saveState() {
         const snap = collectAnswersSnapshot();
         if (!snap) return;
-        safeSet(storageKey(), JSON.stringify(snap));
-        // also write a compact last-mod timestamp
-        safeSet(storageKey() + '::ts', snap.timestamp);
+        // NOTE: intentionally do not write the legacy quiz_progress_v1 snapshot anymore.
+        // Persist only to companion per-session key and main quiz_random_v2 list.
+        // If we have a random session key, also persist answers into a companion key so
+        // admins/users inspecting quiz_random_v2::<key> can optionally find state at
+        // quiz_random_v2::<key>::state without changing the array-of-ids shape.
+        try {
+            const p = getUrlParams();
+            let sessionKey = p.key || (window.quizSessionKey || null);
+            if (!sessionKey) sessionKey = findSessionKeyFromStorage();
+                try { console.info('[quizStatePersist] saveState using sessionKey=', sessionKey); } catch (e) {}
+            if (sessionKey) {
+                const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+                // Persist only the items and timestamp to keep the object small
+                const small = { timestamp: snap.timestamp, items: snap.items };
+                safeSet(companionKey, JSON.stringify(small));
+                try { console.debug('[quizStatePersist] companion save ->', companionKey, small.items ? small.items.length : 0); } catch (e) {}
+                // Also update the main quiz_random_v2::<sessionKey> list to include answered/selected info
+                try {
+                    const mainKey = 'quiz_random_v2::' + sessionKey;
+                    let listRaw = safeGet(mainKey);
+                    try { console.info('[quizStatePersist] saveState mainKey=', mainKey, 'raw=', !!listRaw); } catch (e) {}
+                    let list = [];
+                    if (listRaw) {
+                        try { list = JSON.parse(listRaw); } catch (e) { list = []; }
+                    }
+                    // Normalize to object form
+                    const norm = list.map(it => {
+                        if (it && typeof it === 'object' && it.id !== undefined) return it;
+                        return { id: it, answered: false, selected: [] };
+                    });
+                    // merge snap.items into norm
+                    snap.items.forEach(si => {
+                        const qid = si.questionId;
+                        const foundIdx = norm.findIndex(it => String(it.id) === String(qid));
+                        const newObj = { id: qid, answered: (Array.isArray(si.selected) && si.selected.length>0), selected: si.selected || [] };
+                        if (foundIdx >= 0) norm[foundIdx] = Object.assign({}, norm[foundIdx], newObj);
+                        else norm.push(newObj);
+                    });
+                    safeSet(mainKey, JSON.stringify(norm));
+                } catch (e) { /* ignore main list update errors */ }
+            }
+        } catch (e) { /* ignore companion save errors */ }
     }
 
     function clearState() {
-        safeRemove(storageKey());
-        safeRemove(storageKey() + '::ts');
+        // Clear companion and main session keys when possible
+        try {
+            const p = getUrlParams();
+            const sessionKey = p.key || (window.quizSessionKey || null);
+            if (sessionKey) {
+                safeRemove('quiz_random_v2::' + sessionKey + '::state');
+                safeRemove('quiz_random_v2::' + sessionKey);
+            }
+        } catch (e) { /* ignore */ }
     }
 
     function restoreState() {
-        const raw = safeGet(storageKey());
-        if (!raw) return false;
-        let snap;
-        try { snap = JSON.parse(raw); } catch (e) { return false; }
-        // basic param check: only restore when params match
-        const currentParams = getUrlParams();
-        if (JSON.stringify(currentParams) !== JSON.stringify(snap.params)) return false;
+        // Do NOT read legacy quiz_progress_v1 snapshots. Prefer companion session state
+        // and main quiz_random_v2 objects.
+        let snap = null;
 
-        // We will re-apply selections and trigger submitSingleQuestion for answered items
-        if (!window.currentQuiz || !Array.isArray(window.currentQuiz)) return false;
+        // discover snapshot (same logic as before)
+        try {
+            const p = getUrlParams();
+            let sessionKey = p.key || (window.quizSessionKey || null);
+            let candidates = [];
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && k.indexOf('quiz_random_v2::') === 0 && k.indexOf('::state') === -1) candidates.push(k);
+                }
+            } catch (e) { candidates = []; }
+            if (!sessionKey) sessionKey = findSessionKeyFromStorage();
+            try { console.info('[quizStatePersist] restoreState candidates=', candidates, 'chosenSessionKey=', sessionKey); } catch (e) {}
+            if (sessionKey) {
+                const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+                const compRaw = safeGet(companionKey);
+                try { console.debug('[quizStatePersist] restoreState: companionKey=', companionKey, 'found=', !!compRaw); } catch (e) {}
+                if (compRaw) {
+                    let comp = null;
+                    try { comp = JSON.parse(compRaw); } catch (e) { comp = null; }
+                    try { console.info('[quizStatePersist] companion contents (truncated)=', comp && comp.items ? comp.items.slice(0,10) : comp); } catch (e) {}
+                    snap = { timestamp: comp.timestamp || new Date().toISOString(), params: getUrlParams(), items: comp.items || [] };
+                } else {
+                    try {
+                        const mainKey = 'quiz_random_v2::' + sessionKey;
+                        const mainRaw = safeGet(mainKey);
+                        try { console.info('[quizStatePersist] mainKey=', mainKey, 'rawPresent=', !!mainRaw); } catch (e) {}
+                        if (mainRaw) {
+                            const arr = JSON.parse(mainRaw);
+                            const items = (Array.isArray(arr) ? arr.map((it, idx) => {
+                                if (it && typeof it === 'object' && it.id !== undefined) return { questionId: it.id, index: idx, selected: it.selected || [] };
+                                return { questionId: it, index: idx, selected: [] };
+                            }) : []);
+                            try { console.info('[quizStatePersist] main contents (truncated)=', Array.isArray(arr) ? arr.slice(0,10) : arr); } catch (e) {}
+                            if (items.length) snap = { timestamp: new Date().toISOString(), params: getUrlParams(), items };
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+            }
+        } catch (e) { /* ignore companion restore errors */ }
 
-        // Map by questionId for quick lookup
-        const byQ = {};
-        snap.items.forEach(item => { byQ[item.questionId] = item.selected || []; });
+        if (!snap) {
+            try { console.debug('[quizStatePersist] restoreState -> no snapshot found'); } catch (e) {}
+            return false;
+        }
 
-        // Apply selections
-        window.currentQuiz.forEach((q, idx) => {
-            const selected = byQ[q.id] || [];
-            const name = `q${q.id}`;
-            // clear first
-            const inputs = document.querySelectorAll(`input[name="${name}"]`);
-            inputs.forEach(i => { i.checked = false; i.disabled = false; });
-            selected.forEach(val => {
-                const el = document.querySelector(`input[name="${name}"][value="${val}"]`);
-                if (el) el.checked = true;
-            });
+        // Build items map (normalize strings)
+        const itemsMap = {};
+        snap.items.forEach(item => {
+            try {
+                const key = String(item.questionId);
+                const vals = Array.isArray(item.selected) ? item.selected.map(v => String(v)) : [];
+                itemsMap[key] = vals;
+            } catch (e) { /* ignore malformed item */ }
         });
 
-        // Trigger submitSingleQuestion on those that have selections
-        // Delay slightly to ensure other init handlers finished
-        setTimeout(() => {
-            window.currentQuiz.forEach((q, idx) => {
-                const name = `q${q.id}`;
-                const inputs = document.querySelectorAll(`input[name="${name}"]:checked`);
-                if (inputs && inputs.length > 0 && typeof window.submitSingleQuestion === 'function') {
-                    try { window.submitSingleQuestion(idx, q.id); } catch (e) { /* ignore */ }
-                }
-            });
-            // update progress UI once
-            try { if (typeof window.updateProgress === 'function') window.updateProgress(); } catch (e) {}
-        }, 50);
+        // If a restore is already in progress, don't start another
+        if (window._quizStatePersistRestoreInProgress) {
+            try { console.info('[quizStatePersist] restore already in progress'); } catch (e) {}
+            return true;
+        }
+        window._quizStatePersistRestoreInProgress = true;
 
+        // Attempt to apply selections repeatedly until all items applied or timeout
+        const _cq = (typeof window !== 'undefined' && window.currentQuiz) ? window.currentQuiz : (typeof currentQuiz !== 'undefined' ? currentQuiz : null);
+        if (!_cq || !Array.isArray(_cq)) {
+            window._quizStatePersistRestoreInProgress = false;
+            return false;
+        }
+
+        const pending = new Set(Object.keys(itemsMap));
+        const maxAttempts = 30;
+        let attempts = 0;
+
+        const tryApply = function () {
+            attempts++;
+            try {
+                // iterate pending questionIds and try apply when inputs exist
+                Array.from(pending).forEach(qid => {
+                    const name = `q${qid}`;
+                    const inputs = Array.from(document.querySelectorAll(`input[name="${name}"]`));
+                    if (!inputs || inputs.length === 0) return; // wait for DOM
+                    const saved = itemsMap[String(qid)] || [];
+                    // clear first
+                    inputs.forEach(i => { i.checked = false; i.disabled = false; });
+                    if (!saved || saved.length === 0) {
+                        pending.delete(String(qid));
+                        return;
+                    }
+                    let anyApplied = false;
+                    saved.forEach(val => {
+                        const s = String(val);
+                        for (let i = 0; i < inputs.length; i++) {
+                            const inp = inputs[i];
+                            if (String(inp.value) === s) {
+                                inp.checked = true;
+                                inp.disabled = true;
+                                anyApplied = true;
+                                try { console.info('[quizStatePersist] applied selection for q=', qid, 'value=', s, 'inputId=', inp.id); } catch (e) {}
+                            }
+                        }
+                    });
+                    if (anyApplied) pending.delete(String(qid));
+                });
+            } catch (e) { /* ignore per-iteration errors */ }
+
+            if (pending.size === 0 || attempts >= maxAttempts) {
+                // call submitSingleQuestion for those answered
+                try {
+                    _cq.forEach((q, idx) => {
+                        const name = `q${q.id}`;
+                        const inputs = document.querySelectorAll(`input[name="${name}"]:checked`);
+                        if (inputs && inputs.length > 0 && typeof window.submitSingleQuestion === 'function') {
+                            try { window.submitSingleQuestion(idx, q.id); } catch (e) { /* ignore */ }
+                        }
+                    });
+                } catch (e) { /* ignore */ }
+                try { if (typeof window.updateProgress === 'function') window.updateProgress(); } catch (e) {}
+                window._quizStatePersistRestoreInProgress = false;
+            } else {
+                setTimeout(tryApply, 200);
+            }
+        };
+
+        // start attempts
+        tryApply();
         return true;
     }
 
@@ -156,24 +314,109 @@
     window.quizStatePersist = {
         save: saveState,
         restore: restoreState,
-        clear: clearState
+        clear: clearState,
+        // Return a simple map { questionId: [selectedValues] } synchronously if available
+        getSnapshotMap: function () {
+            try {
+                const p = getUrlParams();
+                let sessionKey = p.key || (window.quizSessionKey || null);
+                if (!sessionKey) sessionKey = findSessionKeyFromStorage();
+                if (!sessionKey) return {};
+                const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+                const compRaw = safeGet(companionKey);
+                if (compRaw) {
+                    try {
+                        const comp = JSON.parse(compRaw);
+                        const map = {};
+                        (comp.items || []).forEach(it => { try { map[String(it.questionId)] = Array.isArray(it.selected) ? it.selected.map(v => String(v)) : []; } catch (e) {} });
+                        return map;
+                    } catch (e) { /* fallthrough */ }
+                }
+                // fallback to main list
+                const mainKey = 'quiz_random_v2::' + sessionKey;
+                const mainRaw = safeGet(mainKey);
+                if (mainRaw) {
+                    try {
+                        const arr = JSON.parse(mainRaw);
+                        const map = {};
+                        if (Array.isArray(arr)) {
+                            arr.forEach((it, idx) => {
+                                if (it && typeof it === 'object' && it.id !== undefined) map[String(it.id)] = Array.isArray(it.selected) ? it.selected.map(v => String(v)) : [];
+                            });
+                        }
+                        return map;
+                    } catch (e) { /* ignore */ }
+                }
+            } catch (e) { /* ignore */ }
+            return {};
+        },
+        // Save a single question's selected answers immediately. Used by submitSingleQuestion
+        saveAnswer: function (questionId, selectedArray, index) {
+            try {
+                // We intentionally no longer write legacy quiz_progress_v1 snapshots here.
+                // Instead, persist to companion session state and update the main quiz_random_v2 list.
+
+                // companion session state
+                try {
+                    const p = getUrlParams();
+                    let sessionKey = p.key || (window.quizSessionKey || null);
+                    if (!sessionKey) sessionKey = findSessionKeyFromStorage();
+                    if (sessionKey) {
+                        const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+                        let compRaw = safeGet(companionKey);
+                        let comp = null;
+                        if (compRaw) {
+                            try { comp = JSON.parse(compRaw); } catch (e) { comp = null; }
+                        }
+                        if (!comp) comp = { timestamp: new Date().toISOString(), items: [] };
+                        const existingC = comp.items.findIndex(it => String(it.questionId) === String(questionId));
+                        const citem = { questionId: questionId, index: (typeof index === 'number' ? index : (comp.items.length)), selected: Array.isArray(selectedArray) ? selectedArray : [] };
+                        if (existingC >= 0) comp.items[existingC] = citem; else comp.items.push(citem);
+                        comp.timestamp = new Date().toISOString();
+                        safeSet(companionKey, JSON.stringify(comp));
+                        // Also update the main quiz_random_v2::<sessionKey> list to include answered/selected info
+                        try {
+                            const mainKey = 'quiz_random_v2::' + sessionKey;
+                            let listRaw = safeGet(mainKey);
+                            let list = [];
+                            if (listRaw) {
+                                try { list = JSON.parse(listRaw); } catch (e) { list = []; }
+                            }
+                            // Normalize to object form
+                            const norm = list.map(it => {
+                                if (it && typeof it === 'object' && it.id !== undefined) return it;
+                                return { id: it, answered: false, selected: [] };
+                            });
+                            const foundIdx = norm.findIndex(it => String(it.id) === String(questionId));
+                            const newObj = { id: questionId, answered: true, selected: Array.isArray(selectedArray) ? selectedArray : [] };
+                            if (foundIdx >= 0) norm[foundIdx] = Object.assign({}, norm[foundIdx], newObj);
+                            else norm.push(newObj);
+                            safeSet(mainKey, JSON.stringify(norm));
+                        } catch (e) { /* ignore main list update errors */ }
+                    }
+                } catch (e) { /* ignore companion save errors */ }
+            } catch (e) { /* ignore */ }
+        }
     };
 
     // Try to initialize after DOM ready. Many quiz globals are created by inline script,
     // so we attempt to wrap and restore shortly after load.
     function init() {
-        wrapSubmit();
         attachAutoSave();
         attachInputListeners();
-        // attempt to restore. If init() of quiz hasn't yet created currentQuiz, retry once later
-        const restored = restoreState();
-        if (!restored) {
-            // retry after small delay in case quiz.init runs later
-            setTimeout(() => {
-                wrapSubmit();
-                restoreState();
-            }, 200);
-        }
+        // Try to wrap submit and restore state repeatedly until the quiz code has initialized
+        let attempts = 0;
+        const maxAttempts = 30; // try for ~6 seconds (30 * 200ms)
+        const tryOnce = function () {
+            attempts++;
+            try { wrapSubmit(); } catch (e) { /* ignore */ }
+            const restored = restoreState();
+            if (restored) return;
+            if (attempts < maxAttempts) {
+                setTimeout(tryOnce, 200);
+            }
+        };
+        tryOnce();
     }
 
     if (document.readyState === 'loading') {

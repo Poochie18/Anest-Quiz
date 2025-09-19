@@ -134,37 +134,6 @@
             questionsDiv.appendChild(questionDiv);
         });
         showControls();
-        // After rendering inputs, apply snapshot map (if present) to set checked/disabled synchronously
-        try {
-            if (window.quizStatePersist && typeof window.quizStatePersist.getSnapshotMap === 'function') {
-                const snapMap = window.quizStatePersist.getSnapshotMap();
-                Object.keys(snapMap).forEach(qid => {
-                    const vals = snapMap[qid] || [];
-                    const inputs = document.querySelectorAll(`input[name="q${qid}"]`);
-                    inputs.forEach(inp => {
-                        try {
-                            if (vals.indexOf(String(inp.value)) !== -1) {
-                                inp.checked = true;
-                                inp.disabled = true;
-                            }
-                        } catch (e) {}
-                    });
-                });
-                // After marking inputs, trigger submitSingleQuestion for those with selections
-                setTimeout(() => {
-                    currentQuiz.forEach((question, index) => {
-                        const inputs = document.querySelectorAll(`input[name="q${question.id}"]:checked`);
-                        if (inputs && inputs.length > 0 && typeof window.submitSingleQuestion === 'function') {
-                            try { window.submitSingleQuestion(index, question.id); } catch (e) {}
-                        }
-                    });
-                    try { if (typeof window.updateProgress === 'function') window.updateProgress(); } catch (e) {}
-                }, 80);
-            } else if (window.quizStatePersist && typeof window.quizStatePersist.restore === 'function') {
-                // fallback to original restore (async)
-                setTimeout(() => { window.quizStatePersist.restore(); }, 200);
-            }
-        } catch (e) { /* ignore */ }
     }
 
     function submitSingleQuestion(index, questionId) {
@@ -225,12 +194,6 @@
         inputs.forEach(input => input.disabled = true);
         const submitBtn = resultDiv.previousElementSibling; submitBtn.disabled = true;
         updateProgress();
-        // Persist this answer immediately (per-session companion storage + url-keyed snapshot)
-        try {
-            if (window.quizStatePersist && typeof window.quizStatePersist.saveAnswer === 'function') {
-                window.quizStatePersist.saveAnswer(questionId, selectedAnswerNums, index);
-            }
-        } catch (e) { /* ignore */ }
     }
 
     function updateProgress() {
@@ -279,19 +242,10 @@
             }
             questionResults.push({ question, userScore: questionCurrentScore, maxScore: questionMaxScore, selectedAnswers: selectedAnswerNums, correctAnswers });
         });
-    displayResults(totalScore, maxPossibleScore, themeScores, questionResults);
+        displayResults(totalScore, maxPossibleScore, themeScores, questionResults);
+        updateQuizStats(questionResults);
         // clear persisted in-progress state after final submission (if persistence is present)
         try { if (window.quizStatePersist && typeof window.quizStatePersist.clear === 'function') window.quizStatePersist.clear(); } catch (e) { }
-        // also clear any stored random question set for this quiz
-        try {
-            // prefer explicit session key stored on window
-            if (window.quizSessionKey) {
-                localStorage.removeItem('quiz_random_v2::' + window.quizSessionKey);
-            } else {
-                const randomKey = 'quiz_random_v1::' + (window.location.pathname || 'quiz') + '::' + JSON.stringify({ mode: params.get('mode'), from: params.get('from'), themeId: params.get('themeId'), count: params.get('count') });
-                localStorage.removeItem(randomKey);
-            }
-        } catch (e) { }
     }
 
     function displayResults(totalScore, maxPossibleScore, themeScores, questionResults) {
@@ -369,67 +323,53 @@
             const themeName = themes.find(t => t.id === themeId)?.name || '';
             startQuiz(`${window.i18n ? i18n.t('theme_prefix') : 'Тема'}: ${themeName}`);
         } else if (mode === 'random' && count > 0) {
-            // Random mode with session key:
-            // - If URL contains `key`, use it to load persisted question ids
-            // - Otherwise generate a new random key + question ids, persist them under quiz_random_v2::<key>,
-            //   and update the URL with the key (replaceState) so refresh keeps the same key
-            function makeRandomKey() {
-                const rnd = Math.random().toString(36).slice(2, 10);
-                return 'r_' + Date.now().toString(36) + '_' + rnd;
-            }
-
-            // prefer explicit 'key' param in URL
-            let sessionKey = params.get('key') || params.get('session') || null;
-            let idList = null;
+            // Try to reuse previously saved random selection so refresh doesn't change the question set.
+            // We no longer use the legacy quiz_progress_v1 snapshot. Prefer the companion/session
+            // data stored under quiz_random_v2::<sessionKey>::state or the main quiz_random_v2::<sessionKey> list.
+            let restoredIds = null;
             try {
+                const params = new URLSearchParams(window.location.search);
+                const sessionKey = params.get('key') || params.get('session') || (window.quizSessionKey || null);
                 if (sessionKey) {
-                    const data = localStorage.getItem('quiz_random_v2::' + sessionKey);
-                    if (data) {
-                        const parsed = JSON.parse(data);
-                        if (Array.isArray(parsed) && parsed.length > 0) idList = parsed;
-                    }
+                    try {
+                        const companionKey = 'quiz_random_v2::' + sessionKey + '::state';
+                        const compRaw = localStorage.getItem(companionKey);
+                        if (compRaw) {
+                            const comp = JSON.parse(compRaw);
+                            if (comp && Array.isArray(comp.items) && comp.items.length > 0) {
+                                restoredIds = comp.items.map(it => it.questionId);
+                            }
+                        }
+                        if (!restoredIds) {
+                            const mainKey = 'quiz_random_v2::' + sessionKey;
+                            const mainRaw = localStorage.getItem(mainKey);
+                            if (mainRaw) {
+                                const arr = JSON.parse(mainRaw);
+                                if (Array.isArray(arr) && arr.length > 0) {
+                                    restoredIds = arr.map(it => (it && typeof it === 'object' ? it.id : it));
+                                }
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
                 }
             } catch (e) { /* ignore */ }
 
-            if (!idList) {
-                // generate a new session key and id list
-                sessionKey = makeRandomKey();
-                const picked = shuffleArray([...questions]).slice(0, count);
-                idList = picked.map(q => q.id);
-                try { localStorage.setItem('quiz_random_v2::' + sessionKey, JSON.stringify(idList)); } catch (e) { /* ignore */ }
-
-                // update URL with new key (do not add extra history entry)
-                try {
-                    const u = new URL(window.location.href);
-                    u.searchParams.set('key', sessionKey);
-                    // keep original params like mode,count
-                    window.history.replaceState(null, '', u.toString());
-                    // update params variable for later code
-                    params.set('key', sessionKey);
-                } catch (e) { /* ignore */ }
-            }
-
-            // expose for other code to clear later
-            window.quizSessionKey = sessionKey;
-
-            // rebuild currentQuiz in saved order, accept idList as array of ids or array of objects {id, answered, selected}
-            currentQuiz = idList.map(entry => {
-                const idVal = (entry && typeof entry === 'object') ? entry.id : entry;
-                return questions.find(q => String(q.id) === String(idVal));
-            }).filter(Boolean);
-
-            // if fewer than requested, fill from remaining and persist updated list
-            if (currentQuiz.length < count) {
-                const existing = currentQuiz.map(q => String(q.id));
-                const remaining = questions.filter(q => !existing.includes(String(q.id)));
-                const extra = shuffleArray(remaining).slice(0, count - currentQuiz.length);
-                currentQuiz = currentQuiz.concat(extra);
-                try { localStorage.setItem('quiz_random_v2::' + sessionKey, JSON.stringify(currentQuiz.map(q => q.id))); } catch (e) {}
+            if (restoredIds && restoredIds.length > 0) {
+                // Rebuild currentQuiz in the saved order; fall back to random fill if some ids missing
+                currentQuiz = restoredIds.map(id => questions.find(q => q.id === id)).filter(Boolean);
+                if (currentQuiz.length < count) {
+                    const remaining = questions.filter(q => !restoredIds.includes(q.id));
+                    currentQuiz = currentQuiz.concat(shuffleArray(remaining).slice(0, count - currentQuiz.length));
+                }
+            } else {
+                currentQuiz = shuffleArray([...questions]).slice(0, count);
             }
 
             startQuiz(`${window.i18n ? i18n.t('exam_prefix') : 'Екзамен'}: ${count} ${window.i18n ? i18n.t('questions_word') : 'вопросов'}`);
-            // ensure persisted state (answers storage key) includes the key; trigger save so state-persist picks it up
-            try { if (window.quizStatePersist && typeof window.quizStatePersist.save === 'function') window.quizStatePersist.save(); } catch (e) { }
+            // persist the generated question set immediately so page reload won't reshuffle it
+            try {
+                setTimeout(() => { if (window.quizStatePersist && typeof window.quizStatePersist.save === 'function') window.quizStatePersist.save(); }, 50);
+            } catch (e) { }
         } else {
             document.getElementById('questions').innerHTML = `<div class="alert alert-warning">${window.i18n ? i18n.t('invalid_quiz_params') : 'Неверные параметры теста.'}</div>`;
         }
@@ -437,7 +377,28 @@
 
     init();
 
-    // statistics removed
+    // Сохранение статистики по темам, как на главной странице
+    function updateQuizStats(results) {
+        try {
+            const stats = JSON.parse(localStorage.getItem('quizStats') || '{}');
+            const resultsByTheme = {};
+            results.forEach(result => {
+                const themeId = result.question.theme_id;
+                if (!resultsByTheme[themeId]) resultsByTheme[themeId] = [];
+                resultsByTheme[themeId].push(result);
+            });
+            Object.entries(resultsByTheme).forEach(([themeId, themeResults]) => {
+                const correctCount = themeResults.filter(r => r.userScore === r.maxScore).length;
+                stats[themeId] = {
+                    total: themeResults.length,
+                    correct: correctCount,
+                    lastAttempt: new Date().toISOString()
+                };
+                localStorage.setItem(`lastQuiz_${themeId}`, JSON.stringify(themeResults));
+            });
+            localStorage.setItem('quizStats', JSON.stringify(stats));
+        } catch (e) { console.error('Failed to update stats', e); }
+    }
     </script>
     
 </body>

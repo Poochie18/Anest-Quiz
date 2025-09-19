@@ -613,19 +613,19 @@
 
     function submitSingleQuestion(index, questionId) {
         const question = currentQuiz[index];
-        const questionAnswers = answers.filter(a => a.question_id === questionId);
+    const questionAnswers = answers.filter(a => String(a.question_id) === String(questionId));
         const isMultipleChoice = questionAnswers.some(a => a.weight > 0 && a.weight < 100);
         
         let questionCurrentScore = 0;
         let questionMaxScore = 0;
         let selectedAnswerNums = [];
 
-        const selectedInputs = document.querySelectorAll(`input[name="q${questionId}"]:checked`);
-        selectedAnswerNums = Array.from(selectedInputs).map(input => input.value);
-        const correctAnswers = questionAnswers.filter(a => a.weight > 0).map(a => a.num_answer);
+    const selectedInputs = document.querySelectorAll(`input[name="q${questionId}"]:checked`);
+    selectedAnswerNums = Array.from(selectedInputs).map(input => String(input.value));
+    const correctAnswers = questionAnswers.filter(a => a.weight > 0).map(a => String(a.num_answer));
 
-        // Проверяем, есть ли среди выбранных ответов неправильные
-        const incorrectSelected = selectedAnswerNums.some(num => !correctAnswers.includes(num));
+    // Проверяем, есть ли среди выбранных ответов неправильные
+    const incorrectSelected = selectedAnswerNums.some(num => !correctAnswers.includes(String(num)));
         
         // Проверяем количество правильных ответов
         const totalCorrectAnswers = correctAnswers.length;
@@ -669,7 +669,7 @@
         // Подсветка ответов с использованием классов
         questionAnswers.forEach(answer => {
             const label = document.querySelector(`label[for="q${questionId}a${answer.num_answer}"]`);
-            const isSelected = selectedAnswerNums.includes(answer.num_answer);
+            const isSelected = selectedAnswerNums.includes(String(answer.num_answer));
             const isCorrect = answer.weight > 0;
             
             // Сброс предыдущих классов
@@ -869,172 +869,7 @@
             hideControls(); // Hide controls when returning to menu
         }
 
-    // Statistics functionality
-    function showStatistics() {
-        document.getElementById('menu').style.display = 'none';
-        document.getElementById('statistics').style.display = 'block';
-        updateStatistics();
-    }
-
-    function hideStatistics() {
-        document.getElementById('statistics').style.display = 'none';
-        document.getElementById('menu').style.display = 'block';
-    }
-
-    function showThemeDetails(themeId) {
-        const stats = JSON.parse(localStorage.getItem('quizStats') || '{}');
-        const themeStats = stats[themeId] || { total: 0, correct: 0, questions: {} };
-        const theme = themes.find(t => t.id === themeId);
-        
-        const detailedStats = document.createElement('div');
-        detailedStats.className = 'theme-details mt-3';
-        
-        // Get last quiz results for this theme
-        const lastResults = JSON.parse(localStorage.getItem(`lastQuiz_${themeId}`) || '[]');
-        
-        if (lastResults.length > 0) {
-            detailedStats.innerHTML = `
-                <h5 class="mb-3">Last Quiz Results for ${theme.name}</h5>
-                <div class="list-group">
-                    ${lastResults.map((result, index) => `
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <strong>Question ${index + 1}</strong>
-                                <span class="badge bg-${result.userScore === result.maxScore ? 'success' : 'danger'}">
-                                    ${result.userScore === result.maxScore ? 'Correct' : 'Incorrect'}
-                                </span>
-                            </div>
-                            <p class="mb-1 mt-2">${result.question.text}</p>
-                            <div class="answers-list">
-                                ${answers.filter(a => a.question_id === result.question.id)
-                                    .map(answer => `
-                                        <div class="answer ${
-                                            result.selectedAnswers.includes(answer.num_answer) ? 
-                                                (answer.weight > 0 ? 'text-success fw-bold' : 'text-danger fw-bold') :
-                                                (answer.weight > 0 ? 'text-success' : '')
-                                        }">
-                                            ${answer.text}
-                                            ${answer.weight > 0 ? ' (Correct)' : ''}
-                                            ${result.selectedAnswers.includes(answer.num_answer) ? ' (Your Answer)' : ''}
-                                        </div>
-                                    `).join('')}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>`;
-        } else {
-            detailedStats.innerHTML = `<p class="text-muted">No recent quiz results for this theme.</p>`;
-        }
-        
-        return detailedStats;
-    }
-
-    function updateStatistics() {
-        const stats = JSON.parse(localStorage.getItem('quizStats') || '{}');
-        const themeStatsDiv = document.getElementById('theme-stats');
-        themeStatsDiv.innerHTML = '';
-
-        themes.forEach(theme => {
-            const themeStats = stats[theme.id] || { total: 0, correct: 0 };
-            const percentage = themeStats.total > 0 
-                ? Math.round((themeStats.correct / themeStats.total) * 100) 
-                : 0;
-            
-            const lastAttemptDate = themeStats.lastAttempt ? 
-                new Date(themeStats.lastAttempt).toLocaleDateString() : 'Never';
-
-            const themeDiv = document.createElement('div');
-            themeDiv.className = 'theme-stat mb-3';
-            themeDiv.innerHTML = `
-                <div class="theme-header cursor-pointer" onclick="this.parentElement.querySelector('.theme-details').classList.toggle('d-none')">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <div>
-                            <strong>${theme.name}</strong>
-                            <small class="text-muted ms-2">Last attempt: ${lastAttemptDate}</small>
-                        </div>
-                        <span class="badge bg-${percentage >= 70 ? 'success' : percentage >= 40 ? 'warning' : 'danger'}">
-                            ${percentage}% (${themeStats.correct}/${themeStats.total})
-                        </span>
-                    </div>
-                    <div class="progress" style="height: 8px;">
-                        <div class="progress-bar bg-${percentage >= 70 ? 'success' : percentage >= 40 ? 'warning' : 'danger'}" 
-                             role="progressbar" 
-                             style="width: ${percentage}%"
-                             aria-valuenow="${percentage}" 
-                             aria-valuemin="0" 
-                             aria-valuemax="100">
-                        </div>
-                    </div>
-                </div>`;
-            
-            const detailsDiv = showThemeDetails(theme.id);
-            detailsDiv.classList.add('d-none');
-            themeDiv.appendChild(detailsDiv);
-            themeStatsDiv.appendChild(themeDiv);
-        });
-    }
-
-    // Add new styles
-    const styleSheet = document.createElement('style');
-    styleSheet.textContent = `
-        .cursor-pointer { cursor: pointer; }
-        .theme-header:hover { background-color: rgba(0,0,0,0.03); }
-        .answers-list { 
-            margin-top: 8px;
-            padding-left: 20px;
-        }
-        .answer {
-            margin-bottom: 4px;
-            padding: 4px 8px;
-            border-radius: 4px;
-            background-color: rgba(0,0,0,0.02);
-        }
-        .theme-details {
-            border-top: 1px solid #dee2e6;
-            margin-top: 10px;
-            padding-top: 10px;
-        }
-    `;
-    document.head.appendChild(styleSheet);
-
-    function updateQuizStats(results) {
-        const stats = JSON.parse(localStorage.getItem('quizStats') || '{}');
-        
-        // Group results by theme
-        const resultsByTheme = {};
-        results.forEach(result => {
-            const themeId = result.question.theme_id;
-            if (!resultsByTheme[themeId]) {
-                resultsByTheme[themeId] = [];
-            }
-            resultsByTheme[themeId].push(result);
-        });
-
-        // Update stats with only the latest results
-        Object.entries(resultsByTheme).forEach(([themeId, themeResults]) => {
-            const correctCount = themeResults.filter(r => r.userScore === r.maxScore).length;
-            stats[themeId] = {
-                total: themeResults.length,
-                correct: correctCount,
-                lastAttempt: new Date().toISOString()
-            };
-        });
-
-        // Save results for each theme
-        Object.entries(resultsByTheme).forEach(([themeId, themeResults]) => {
-            localStorage.setItem(`lastQuiz_${themeId}`, JSON.stringify(themeResults));
-        });
-
-        localStorage.setItem('quizStats', JSON.stringify(stats));
-        updateStatistics();
-    }
-
-    // Update the original displayResults function to include statistics
-    const originalDisplayResults = displayResults;
-    displayResults = function(totalScore, maxPossibleScore, themeScores, questionResults) {
-        originalDisplayResults.apply(this, arguments);
-        updateQuizStats(questionResults);
-    }
+    // Statistics feature removed
 
     function route() {
         const params = new URLSearchParams(window.location.search);
@@ -1067,15 +902,14 @@
         }
 
         // pages
-        const menu = document.getElementById('menu');
-        const quiz = document.getElementById('quiz');
-        const stats = document.getElementById('statistics');
-        const themesPage = document.getElementById('themesPage');
-        const randomPage = document.getElementById('randomPage');
+    const menu = document.getElementById('menu');
+    const quiz = document.getElementById('quiz');
+    const themesPage = document.getElementById('themesPage');
+    const randomPage = document.getElementById('randomPage');
 
         menu.style.display = page === 'home' ? 'block' : 'none';
         quiz.style.display = page === 'quiz' ? 'block' : 'none';
-        stats.style.display = page === 'stats' ? 'block' : 'none';
+    // statistics page removed
         themesPage.style.display = page === 'themes' ? 'block' : 'none';
         randomPage.style.display = page === 'random' ? 'block' : 'none';
 
@@ -1086,9 +920,7 @@
             if (page === 'home') langSw.classList.add('show');
         }
 
-        if (page === 'stats') {
-            showStatistics();
-        }
+        // statistics removed
 
         // hide selectors on quiz page
         if (page === 'quiz') {
@@ -1099,6 +931,21 @@
 
     // Initialize
     (async function init() {
+        // Explicitly remove problematic snapshot key (safety) and clear any per-theme lastQuiz_ entries when landing on index (to avoid accumulation)
+        try {
+            // Clear per-theme last attempts and any quiz_random_v* session keys to avoid
+            // accumulating per-user data when landing on the index page.
+            const removed = [];
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (!k) continue;
+                if (k.indexOf('lastQuiz_') === 0 || k.indexOf('quiz_random_v2::') === 0 || k.indexOf('quiz_random_v1::') === 0 || k.indexOf('quiz_progress_v1::') === 0) {
+                    removed.push(k);
+                    localStorage.removeItem(k);
+                }
+            }
+            if (removed.length) console.log('Cleared storage keys on index load:', removed);
+        } catch (e) { /* ignore */ }
         try {
             if (window.quizData) {
                 await quizData.load();
@@ -1109,7 +956,6 @@
                 await loadJSONFiles();
             }
             populateThemeSelect();
-            updateStatistics();
             route();
         } catch (e) { console.error(e); }
     })();
