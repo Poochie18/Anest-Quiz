@@ -118,6 +118,31 @@
         window.submitSingleQuestion = wrapped;
     }
 
+    // Debounced helper
+    function debounce(fn, wait) {
+        let t = null;
+        return function () {
+            const args = arguments;
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), wait);
+        };
+    }
+
+    // Save when user changes inputs (so refresh preserves selections even before clicking submit)
+    function attachInputListeners() {
+        // Use event delegation on document to catch dynamically created inputs
+        const handler = debounce(() => {
+            try { saveState(); } catch (e) {}
+        }, 200);
+        document.addEventListener('change', (ev) => {
+            const target = ev.target;
+            if (!target) return;
+            if (target.matches && target.matches('input[name^="q"]')) {
+                handler();
+            }
+        }, { capture: false });
+    }
+
     // Hook save on visibility change, pagehide and beforeunload
     function attachAutoSave() {
         document.addEventListener('visibilitychange', () => {
@@ -139,6 +164,7 @@
     function init() {
         wrapSubmit();
         attachAutoSave();
+        attachInputListeners();
         // attempt to restore. If init() of quiz hasn't yet created currentQuiz, retry once later
         const restored = restoreState();
         if (!restored) {
